@@ -1,0 +1,269 @@
+{
+    "info": {
+      "name": "PSMS Storage Management API",
+      "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+      "description": "Postman collection for Storage Management endpoints in Physical Storage Management System"
+    },
+    "item": [
+      {
+        "name": "Authentication",
+        "item": [
+          {
+            "name": "Login",
+            "request": {
+              "method": "POST",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": {
+                "mode": "raw",
+                "raw": "{\n  \"username\": \"admin\",\n  \"password\": \"admin123\"\n}"
+              },
+              "url": {
+                "raw": "{{base_url}}/api/auth/login",
+                "host": ["{{base_url}}"],
+                "path": ["api", "auth", "login"]
+              },
+              "description": "Get access token for API calls"
+            }
+          }
+        ]
+      },
+      {
+        "name": "Storage Locations",
+        "item": [
+          {
+            "name": "Get All Storage Locations",
+            "request": {
+              "method": "GET",
+              "header": [
+                {
+                  "key": "Authorization",
+                  "value": "Bearer {{access_token}}"
+                }
+              ],
+              "url": {
+                "raw": "{{base_url}}/api/storage/locations?page=1&limit=10&is_available=true",
+                "host": ["{{base_url}}"],
+                "path": ["api", "storage", "locations"],
+                "query": [
+                  {
+                    "key": "page",
+                    "value": "1"
+                  },
+                  {
+                    "key": "limit",
+                    "value": "10"
+                  },
+                  {
+                    "key": "is_available",
+                    "value": "true"
+                  }
+                ]
+              },
+              "description": "Get paginated list of storage locations (Admin/Staff only)"
+            }
+          },
+          {
+            "name": "Get Available Locations",
+            "request": {
+              "method": "GET",
+              "header": [
+                {
+                  "key": "Authorization",
+                  "value": "Bearer {{access_token}}"
+                }
+              ],
+              "url": {
+                "raw": "{{base_url}}/api/storage/locations/available",
+                "host": ["{{base_url}}"],
+                "path": ["api", "storage", "locations", "available"]
+              },
+              "description": "Get list of available (unoccupied) storage locations"
+            }
+          },
+          {
+            "name": "Get Location by ID",
+            "request": {
+              "method": "GET",
+              "header": [
+                {
+                  "key": "Authorization",
+                  "value": "Bearer {{access_token}}"
+                }
+              ],
+              "url": {
+                "raw": "{{base_url}}/api/storage/locations/1",
+                "host": ["{{base_url}}"],
+                "path": ["api", "storage", "locations", "1"]
+              },
+              "description": "Get detailed information about a specific storage location"
+            }
+          },
+          {
+            "name": "Create New Location",
+            "request": {
+              "method": "POST",
+              "header": [
+                {
+                  "key": "Authorization",
+                  "value": "Bearer {{access_token}}"
+                },
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": {
+                "mode": "raw",
+                "raw": "{\n  \"label_code\": \"RACK-D-01\",\n  \"location_description\": \"Warehouse D - Section 1 - Level 1\",\n  \"is_available\": true\n}"
+              },
+              "url": {
+                "raw": "{{base_url}}/api/storage/locations",
+                "host": ["{{base_url}}"],
+                "path": ["api", "storage", "locations"]
+              },
+              "description": "Create a new storage location (Admin/Staff only)"
+            }
+          },
+          {
+            "name": "Update Location",
+            "request": {
+              "method": "PUT",
+              "header": [
+                {
+                  "key": "Authorization",
+                  "value": "Bearer {{access_token}}"
+                },
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": {
+                "mode": "raw",
+                "raw": "{\n  \"location_description\": \"Warehouse A - Section 1 - Level 1 (Updated)\",\n  \"is_available\": false\n}"
+              },
+              "url": {
+                "raw": "{{base_url}}/api/storage/locations/1",
+                "host": ["{{base_url}}"],
+                "path": ["api", "storage", "locations", "1"]
+              },
+              "description": "Update an existing storage location (Admin/Staff only)"
+            }
+          },
+          {
+            "name": "Delete Location",
+            "request": {
+              "method": "DELETE",
+              "header": [
+                {
+                  "key": "Authorization",
+                  "value": "Bearer {{access_token}}"
+                }
+              ],
+              "url": {
+                "raw": "{{base_url}}/api/storage/locations/15",
+                "host": ["{{base_url}}"],
+                "path": ["api", "storage", "locations", "15"]
+              },
+              "description": "Delete a storage location (Admin only, must have no boxes assigned)"
+            }
+          }
+        ]
+      },
+      {
+        "name": "Statistics & Status",
+        "item": [
+          {
+            "name": "Get Storage Statistics",
+            "request": {
+              "method": "GET",
+              "header": [
+                {
+                  "key": "Authorization",
+                  "value": "Bearer {{access_token}}"
+                }
+              ],
+              "url": {
+                "raw": "{{base_url}}/api/storage/stats",
+                "host": ["{{base_url}}"],
+                "path": ["api", "storage", "stats"]
+              },
+              "description": "Get comprehensive storage statistics and utilization"
+            }
+          },
+          {
+            "name": "Get System Status",
+            "request": {
+              "method": "GET",
+              "header": [
+                {
+                  "key": "Authorization",
+                  "value": "Bearer {{access_token}}"
+                }
+              ],
+              "url": {
+                "raw": "{{base_url}}/api/storage/status",
+                "host": ["{{base_url}}"],
+                "path": ["api", "storage", "status"]
+              },
+              "description": "Get system health and storage status"
+            }
+          }
+        ]
+      }
+    ],
+    "variable": [
+      {
+        "key": "base_url",
+        "value": "http://localhost:3000",
+        "type": "string"
+      },
+      {
+        "key": "access_token",
+        "value": "",
+        "type": "string"
+      }
+    ],
+    "event": [
+      {
+        "listen": "prerequest",
+        "script": {
+          "type": "text/javascript",
+          "exec": [
+            "console.log('Request:', pm.request);"
+          ]
+        }
+      },
+      {
+        "listen": "test",
+        "script": {
+          "type": "text/javascript",
+          "exec": [
+            "pm.test('Status code is 200', function () {",
+            "    pm.response.to.have.status(200);",
+            "});",
+            "",
+            "pm.test('Response has success status', function () {",
+            "    var jsonData = pm.response.json();",
+            "    pm.expect(jsonData.status).to.equal('success');",
+            "});"
+          ]
+        }
+      }
+    ],
+    "auth": {
+      "type": "bearer",
+      "bearer": [
+        {
+          "key": "token",
+          "value": "{{access_token}}",
+          "type": "string"
+        }
+      ]
+    }
+  }

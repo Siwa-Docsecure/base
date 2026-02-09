@@ -1,0 +1,697 @@
+{
+  "info": {
+    "name": "PSMS - Box Management",
+    "description": "Complete box management API endpoints for PSMS\n\n**Features:**\n- Box CRUD operations\n- Auto-generated box numbers\n- Filtering & pagination\n- Status management\n- Bulk operations\n- Pending destruction tracking\n\n**Setup:**\n1. Run '0. Setup - Login' to get token\n2. Token auto-saves to collection variable\n3. All requests use {{access_token}}\n\n**Default Credentials:**\n- Admin: admin / admin123\n- Staff: staff1 / admin123",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://localhost:3000",
+      "type": "string"
+    },
+    {
+      "key": "access_token",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "test_box_id",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "test_client_id",
+      "value": "1",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "0. Setup",
+      "item": [
+        {
+          "name": "Login as Admin",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "    const response = pm.response.json();",
+                  "    pm.collectionVariables.set('access_token', response.data.accessToken);",
+                  "    pm.environment.set('access_token', response.data.accessToken);",
+                  "    console.log('✅ Token saved:', response.data.accessToken.substring(0, 20) + '...');",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"admin\",\n  \"password\": \"admin123\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/auth/login",
+              "host": ["{{base_url}}"],
+              "path": ["api", "auth", "login"]
+            }
+          }
+        },
+        {
+          "name": "Login as Staff",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "    const response = pm.response.json();",
+                  "    pm.collectionVariables.set('access_token', response.data.accessToken);",
+                  "    pm.environment.set('access_token', response.data.accessToken);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"staff1\",\n  \"password\": \"admin123\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/auth/login",
+              "host": ["{{base_url}}"],
+              "path": ["api", "auth", "login"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "1. Box CRUD",
+      "item": [
+        {
+          "name": "Get All Boxes",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/boxes?page=1&limit=20",
+              "host": ["{{base_url}}"],
+              "path": ["api", "boxes"],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "20"
+                },
+                {
+                  "key": "clientId",
+                  "value": "1",
+                  "disabled": true
+                },
+                {
+                  "key": "status",
+                  "value": "stored",
+                  "disabled": true
+                },
+                {
+                  "key": "search",
+                  "value": "financial",
+                  "disabled": true
+                },
+                {
+                  "key": "pendingDestruction",
+                  "value": "true",
+                  "disabled": true
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Box by ID",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/boxes/1",
+              "host": ["{{base_url}}"],
+              "path": ["api", "boxes", "1"]
+            }
+          }
+        },
+        {
+          "name": "Create Box",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "    const response = pm.response.json();",
+                  "    pm.collectionVariables.set('test_box_id', response.data.boxId);",
+                  "    console.log('✅ Box created:', response.data.boxNumber);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"clientId\": 1,\n  \"rackingLabelId\": 1,\n  \"boxDescription\": \"Financial Records 2024 - Q1 to Q4\",\n  \"dateReceived\": \"2024-01-15\",\n  \"retentionYears\": 7\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/boxes",
+              "host": ["{{base_url}}"],
+              "path": ["api", "boxes"]
+            }
+          }
+        },
+        {
+          "name": "Update Box",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"boxDescription\": \"Financial Records 2024 - Updated Description\",\n  \"rackingLabelId\": 2,\n  \"retentionYears\": 10\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/boxes/{{test_box_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["api", "boxes", "{{test_box_id}}"]
+            }
+          }
+        },
+        {
+          "name": "Change Box Status",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"retrieved\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/boxes/{{test_box_id}}/status",
+              "host": ["{{base_url}}"],
+              "path": ["api", "boxes", "{{test_box_id}}", "status"]
+            }
+          }
+        },
+        {
+          "name": "Delete Box",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/boxes/{{test_box_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["api", "boxes", "{{test_box_id}}"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "2. Query & Filter",
+      "item": [
+        {
+          "name": "Get Box Statistics",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/boxes/stats",
+              "host": ["{{base_url}}"],
+              "path": ["api", "boxes", "stats"]
+            }
+          }
+        },
+        {
+          "name": "Get Pending Destruction Boxes",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/boxes/pending-destruction",
+              "host": ["{{base_url}}"],
+              "path": ["api", "boxes", "pending-destruction"]
+            }
+          }
+        },
+        {
+          "name": "Get Boxes by Client",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/boxes/client/{{test_client_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["api", "boxes", "client", "{{test_client_id}}"]
+            }
+          }
+        },
+        {
+          "name": "Filter by Status (Stored)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/boxes?status=stored&page=1&limit=20",
+              "host": ["{{base_url}}"],
+              "path": ["api", "boxes"],
+              "query": [
+                {
+                  "key": "status",
+                  "value": "stored"
+                },
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "20"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Search Boxes",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/boxes?search=financial&page=1&limit=20",
+              "host": ["{{base_url}}"],
+              "path": ["api", "boxes"],
+              "query": [
+                {
+                  "key": "search",
+                  "value": "financial"
+                },
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "20"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Filter by Client and Status",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/boxes?clientId=1&status=stored&sortBy=box_number&sortOrder=ASC",
+              "host": ["{{base_url}}"],
+              "path": ["api", "boxes"],
+              "query": [
+                {
+                  "key": "clientId",
+                  "value": "1"
+                },
+                {
+                  "key": "status",
+                  "value": "stored"
+                },
+                {
+                  "key": "sortBy",
+                  "value": "box_number"
+                },
+                {
+                  "key": "sortOrder",
+                  "value": "ASC"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "3. Bulk Operations",
+      "item": [
+        {
+          "name": "Bulk Create Boxes",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"boxes\": [\n    {\n      \"clientId\": 1,\n      \"rackingLabelId\": 3,\n      \"boxDescription\": \"HR Files January 2024\",\n      \"dateReceived\": \"2024-01-01\",\n      \"retentionYears\": 7\n    },\n    {\n      \"clientId\": 1,\n      \"rackingLabelId\": 4,\n      \"boxDescription\": \"HR Files February 2024\",\n      \"dateReceived\": \"2024-02-01\",\n      \"retentionYears\": 7\n    },\n    {\n      \"clientId\": 1,\n      \"rackingLabelId\": 5,\n      \"boxDescription\": \"HR Files March 2024\",\n      \"dateReceived\": \"2024-03-01\",\n      \"retentionYears\": 7\n    }\n  ]\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/boxes/bulk/create",
+              "host": ["{{base_url}}"],
+              "path": ["api", "boxes", "bulk", "create"]
+            }
+          }
+        },
+        {
+          "name": "Bulk Update Status",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"boxIds\": [1, 2, 3, 4, 5],\n  \"status\": \"retrieved\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/boxes/bulk/status",
+              "host": ["{{base_url}}"],
+              "path": ["api", "boxes", "bulk", "status"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "4. Status Management",
+      "item": [
+        {
+          "name": "Set Status to Stored",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"stored\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/boxes/1/status",
+              "host": ["{{base_url}}"],
+              "path": ["api", "boxes", "1", "status"]
+            }
+          }
+        },
+        {
+          "name": "Set Status to Retrieved",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"retrieved\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/boxes/1/status",
+              "host": ["{{base_url}}"],
+              "path": ["api", "boxes", "1", "status"]
+            }
+          }
+        },
+        {
+          "name": "Set Status to Destroyed",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"destroyed\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/boxes/1/status",
+              "host": ["{{base_url}}"],
+              "path": ["api", "boxes", "1", "status"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "5. Examples - Different Scenarios",
+      "item": [
+        {
+          "name": "Create Box - Basic (No Location)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"clientId\": 1,\n  \"boxDescription\": \"Temporary Storage - Awaiting Assignment\",\n  \"dateReceived\": \"2024-01-15\",\n  \"retentionYears\": 7\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/boxes",
+              "host": ["{{base_url}}"],
+              "path": ["api", "boxes"]
+            }
+          }
+        },
+        {
+          "name": "Create Box - Legal (10 Years)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"clientId\": 1,\n  \"rackingLabelId\": 6,\n  \"boxDescription\": \"Legal Contracts - 10 Year Retention\",\n  \"dateReceived\": \"2024-03-10\",\n  \"retentionYears\": 10\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/boxes",
+              "host": ["{{base_url}}"],
+              "path": ["api", "boxes"]
+            }
+          }
+        },
+        {
+          "name": "Create Box - Short Retention (3 Years)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"clientId\": 5,\n  \"rackingLabelId\": 13,\n  \"boxDescription\": \"Marketing Materials - Short Retention\",\n  \"dateReceived\": \"2024-06-15\",\n  \"retentionYears\": 3\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/boxes",
+              "host": ["{{base_url}}"],
+              "path": ["api", "boxes"]
+            }
+          }
+        },
+        {
+          "name": "Get Boxes - Multiple Filters",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/boxes?clientId=1&status=stored&rackingLabelId=1&sortBy=date_received&sortOrder=DESC&page=1&limit=10",
+              "host": ["{{base_url}}"],
+              "path": ["api", "boxes"],
+              "query": [
+                {
+                  "key": "clientId",
+                  "value": "1"
+                },
+                {
+                  "key": "status",
+                  "value": "stored"
+                },
+                {
+                  "key": "rackingLabelId",
+                  "value": "1"
+                },
+                {
+                  "key": "sortBy",
+                  "value": "date_received"
+                },
+                {
+                  "key": "sortOrder",
+                  "value": "DESC"
+                },
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "10"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,886 @@
+{
+  "info": {
+    "name": "PSMS API - Clients",
+    "description": "Client management endpoints for Physical Storage Management System",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://localhost:3000/api",
+      "type": "string"
+    },
+    {
+      "key": "access_token",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "client_id",
+      "value": "1",
+      "type": "string"
+    },
+    {
+      "key": "user_id",
+      "value": "3",
+      "type": "string"
+    }
+  ],
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{access_token}}",
+        "type": "string"
+      }
+    ]
+  },
+  "item": [
+    {
+      "name": "1. Client Management",
+      "item": [
+        {
+          "name": "1.1 Get All Clients",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/clients?page=1&limit=10&sortBy=created_at&sortOrder=DESC",
+              "host": ["{{base_url}}"],
+              "path": ["clients"],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1",
+                  "description": "Page number"
+                },
+                {
+                  "key": "limit",
+                  "value": "10",
+                  "description": "Items per page"
+                },
+                {
+                  "key": "sortBy",
+                  "value": "created_at",
+                  "description": "Field to sort by (client_name, client_code, created_at, etc.)"
+                },
+                {
+                  "key": "sortOrder",
+                  "value": "DESC",
+                  "description": "Sort order (ASC or DESC)"
+                },
+                {
+                  "key": "search",
+                  "value": "",
+                  "description": "Search in name, code, contact, email, phone",
+                  "disabled": true
+                },
+                {
+                  "key": "isActive",
+                  "value": "true",
+                  "description": "Filter by active status",
+                  "disabled": true
+                },
+                {
+                  "key": "includeInactive",
+                  "value": "false",
+                  "description": "Include inactive clients",
+                  "disabled": true
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "1.2 Get All Clients - With Search",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/clients?page=1&limit=10&search=Acme&sortBy=client_name&sortOrder=ASC",
+              "host": ["{{base_url}}"],
+              "path": ["clients"],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "10"
+                },
+                {
+                  "key": "search",
+                  "value": "Acme",
+                  "description": "Search term"
+                },
+                {
+                  "key": "sortBy",
+                  "value": "client_name"
+                },
+                {
+                  "key": "sortOrder",
+                  "value": "ASC"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "1.3 Get Client by ID",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.collectionVariables.set('client_id', jsonData.data.clientId);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/clients/{{client_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["clients", "{{client_id}}"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "1.4 Create Client",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.collectionVariables.set('client_id', jsonData.data.clientId);",
+                  "    console.log('New client ID:', jsonData.data.clientId);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"clientName\": \"Test Corporation Ltd\",\n  \"contactPerson\": \"John Doe\",\n  \"email\": \"john.doe@testcorp.com\",\n  \"phone\": \"+268-7612-3456\",\n  \"address\": \"123 Main Street, Mbabane, Eswatini\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/clients",
+              "host": ["{{base_url}}"],
+              "path": ["clients"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "1.5 Create Client - Auto-Generate Code",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.collectionVariables.set('client_id', jsonData.data.clientId);",
+                  "    console.log('Auto-generated client code:', jsonData.data.clientCode);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"clientName\": \"New Business Ventures\",\n  \"contactPerson\": \"Jane Smith\",\n  \"email\": \"jane@newbiz.com\",\n  \"phone\": \"+268-7698-7654\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/clients",
+              "host": ["{{base_url}}"],
+              "path": ["clients"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "1.6 Update Client",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"contactPerson\": \"John Doe Jr.\",\n  \"phone\": \"+268-7612-9999\",\n  \"email\": \"john.doe.jr@testcorp.com\",\n  \"address\": \"456 New Address, Mbabane\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/clients/{{client_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["clients", "{{client_id}}"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "1.7 Update Client - Partial",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"phone\": \"+268-7612-8888\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/clients/{{client_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["clients", "{{client_id}}"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "1.8 Delete Client (Soft Delete)",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/clients/{{client_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["clients", "{{client_id}}"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "1.9 Activate Client",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/clients/{{client_id}}/activate",
+              "host": ["{{base_url}}"],
+              "path": ["clients", "{{client_id}}", "activate"]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "2. Client Users",
+      "item": [
+        {
+          "name": "2.1 Get Client Users",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/clients/{{client_id}}/users",
+              "host": ["{{base_url}}"],
+              "path": ["clients", "{{client_id}}", "users"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "2.2 Assign User to Client",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"userId\": {{user_id}}\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/clients/{{client_id}}/assign-user",
+              "host": ["{{base_url}}"],
+              "path": ["clients", "{{client_id}}", "assign-user"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "2.3 Remove User from Client",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/clients/{{client_id}}/users/{{user_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["clients", "{{client_id}}", "users", "{{user_id}}"]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "3. Client Boxes",
+      "item": [
+        {
+          "name": "3.1 Get Client Boxes - All",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/clients/{{client_id}}/boxes?page=1&limit=10",
+              "host": ["{{base_url}}"],
+              "path": ["clients", "{{client_id}}", "boxes"],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "10"
+                },
+                {
+                  "key": "status",
+                  "value": "stored",
+                  "description": "Filter by status (stored, retrieved, destroyed)",
+                  "disabled": true
+                },
+                {
+                  "key": "sortBy",
+                  "value": "created_at",
+                  "disabled": true
+                },
+                {
+                  "key": "sortOrder",
+                  "value": "DESC",
+                  "disabled": true
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "3.2 Get Client Boxes - Stored Only",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/clients/{{client_id}}/boxes?status=stored&page=1&limit=10",
+              "host": ["{{base_url}}"],
+              "path": ["clients", "{{client_id}}", "boxes"],
+              "query": [
+                {
+                  "key": "status",
+                  "value": "stored"
+                },
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "10"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "3.3 Get Client Boxes - Retrieved Only",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/clients/{{client_id}}/boxes?status=retrieved&page=1&limit=10",
+              "host": ["{{base_url}}"],
+              "path": ["clients", "{{client_id}}", "boxes"],
+              "query": [
+                {
+                  "key": "status",
+                  "value": "retrieved"
+                },
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "10"
+                }
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "4. Client Statistics",
+      "item": [
+        {
+          "name": "4.1 Get Client Statistics",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/clients/{{client_id}}/statistics",
+              "host": ["{{base_url}}"],
+              "path": ["clients", "{{client_id}}", "statistics"]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "5. Audit Logs",
+      "item": [
+        {
+          "name": "5.1 Get Client Audit Logs - All",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/clients/{{client_id}}/audit-logs?page=1&limit=20",
+              "host": ["{{base_url}}"],
+              "path": ["clients", "{{client_id}}", "audit-logs"],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "20"
+                },
+                {
+                  "key": "action",
+                  "value": "CREATE",
+                  "description": "Filter by action type",
+                  "disabled": true
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "5.2 Get Client Audit Logs - By Action",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/clients/{{client_id}}/audit-logs?action=UPDATE&page=1&limit=20",
+              "host": ["{{base_url}}"],
+              "path": ["clients", "{{client_id}}", "audit-logs"],
+              "query": [
+                {
+                  "key": "action",
+                  "value": "UPDATE",
+                  "description": "CREATE, UPDATE, DELETE, ACTIVATE, ASSIGN_USER, REMOVE_USER"
+                },
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "20"
+                }
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "6. Test Scenarios",
+      "item": [
+        {
+          "name": "6.1 Complete Client Workflow",
+          "item": [
+            {
+              "name": "Step 1 - Create Client",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test('Status code is 201', function () {",
+                      "    pm.response.to.have.status(201);",
+                      "});",
+                      "",
+                      "pm.test('Response has client data', function () {",
+                      "    var jsonData = pm.response.json();",
+                      "    pm.expect(jsonData.status).to.eql('success');",
+                      "    pm.expect(jsonData.data).to.have.property('clientId');",
+                      "    pm.expect(jsonData.data).to.have.property('clientCode');",
+                      "    ",
+                      "    // Save for next requests",
+                      "    pm.collectionVariables.set('workflow_client_id', jsonData.data.clientId);",
+                      "});"
+                    ],
+                    "type": "text/javascript"
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"clientName\": \"Workflow Test Company\",\n  \"contactPerson\": \"Test Manager\",\n  \"email\": \"test@workflow.com\",\n  \"phone\": \"+268-7600-0000\"\n}"
+                },
+                "url": {
+                  "raw": "{{base_url}}/clients",
+                  "host": ["{{base_url}}"],
+                  "path": ["clients"]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Step 2 - Get Client Details",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test('Status code is 200', function () {",
+                      "    pm.response.to.have.status(200);",
+                      "});",
+                      "",
+                      "pm.test('Client has statistics', function () {",
+                      "    var jsonData = pm.response.json();",
+                      "    pm.expect(jsonData.data).to.have.property('statistics');",
+                      "});"
+                    ],
+                    "type": "text/javascript"
+                  }
+                }
+              ],
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{base_url}}/clients/{{workflow_client_id}}",
+                  "host": ["{{base_url}}"],
+                  "path": ["clients", "{{workflow_client_id}}"]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Step 3 - Update Client",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test('Status code is 200', function () {",
+                      "    pm.response.to.have.status(200);",
+                      "});",
+                      "",
+                      "pm.test('Client updated successfully', function () {",
+                      "    var jsonData = pm.response.json();",
+                      "    pm.expect(jsonData.message).to.include('updated');",
+                      "});"
+                    ],
+                    "type": "text/javascript"
+                  }
+                }
+              ],
+              "request": {
+                "method": "PUT",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"phone\": \"+268-7600-1111\",\n  \"address\": \"Updated Address, Mbabane\"\n}"
+                },
+                "url": {
+                  "raw": "{{base_url}}/clients/{{workflow_client_id}}",
+                  "host": ["{{base_url}}"],
+                  "path": ["clients", "{{workflow_client_id}}"]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Step 4 - Get Statistics",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test('Status code is 200', function () {",
+                      "    pm.response.to.have.status(200);",
+                      "});",
+                      "",
+                      "pm.test('Has all statistics sections', function () {",
+                      "    var jsonData = pm.response.json();",
+                      "    pm.expect(jsonData.data).to.have.property('boxes');",
+                      "    pm.expect(jsonData.data).to.have.property('users');",
+                      "    pm.expect(jsonData.data).to.have.property('activities');",
+                      "    pm.expect(jsonData.data).to.have.property('requests');",
+                      "});"
+                    ],
+                    "type": "text/javascript"
+                  }
+                }
+              ],
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{base_url}}/clients/{{workflow_client_id}}/statistics",
+                  "host": ["{{base_url}}"],
+                  "path": ["clients", "{{workflow_client_id}}", "statistics"]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Step 5 - Get Audit Logs",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test('Status code is 200', function () {",
+                      "    pm.response.to.have.status(200);",
+                      "});",
+                      "",
+                      "pm.test('Has audit logs', function () {",
+                      "    var jsonData = pm.response.json();",
+                      "    pm.expect(jsonData.data.logs).to.be.an('array');",
+                      "    pm.expect(jsonData.data.logs.length).to.be.greaterThan(0);",
+                      "});"
+                    ],
+                    "type": "text/javascript"
+                  }
+                }
+              ],
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{base_url}}/clients/{{workflow_client_id}}/audit-logs",
+                  "host": ["{{base_url}}"],
+                  "path": ["clients", "{{workflow_client_id}}", "audit-logs"]
+                }
+              },
+              "response": []
+            }
+          ]
+        },
+        {
+          "name": "6.2 Error Scenarios",
+          "item": [
+            {
+              "name": "Create Client - Missing Required Fields",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test('Status code is 400', function () {",
+                      "    pm.response.to.have.status(400);",
+                      "});",
+                      "",
+                      "pm.test('Error message provided', function () {",
+                      "    var jsonData = pm.response.json();",
+                      "    pm.expect(jsonData.status).to.eql('error');",
+                      "    pm.expect(jsonData.message).to.exist;",
+                      "});"
+                    ],
+                    "type": "text/javascript"
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"email\": \"test@example.com\"\n}"
+                },
+                "url": {
+                  "raw": "{{base_url}}/clients",
+                  "host": ["{{base_url}}"],
+                  "path": ["clients"]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Create Client - Invalid Email",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test('Status code is 400', function () {",
+                      "    pm.response.to.have.status(400);",
+                      "});",
+                      "",
+                      "pm.test('Email validation error', function () {",
+                      "    var jsonData = pm.response.json();",
+                      "    pm.expect(jsonData.message).to.include('email');",
+                      "});"
+                    ],
+                    "type": "text/javascript"
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"clientName\": \"Test Company\",\n  \"contactPerson\": \"John Doe\",\n  \"email\": \"invalid-email\",\n  \"phone\": \"+268-7612-3456\"\n}"
+                },
+                "url": {
+                  "raw": "{{base_url}}/clients",
+                  "host": ["{{base_url}}"],
+                  "path": ["clients"]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Create Client - Invalid Phone",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test('Status code is 400', function () {",
+                      "    pm.response.to.have.status(400);",
+                      "});",
+                      "",
+                      "pm.test('Phone validation error', function () {",
+                      "    var jsonData = pm.response.json();",
+                      "    pm.expect(jsonData.message).to.include('phone');",
+                      "});"
+                    ],
+                    "type": "text/javascript"
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"clientName\": \"Test Company\",\n  \"contactPerson\": \"John Doe\",\n  \"email\": \"john@test.com\",\n  \"phone\": \"12345\"\n}"
+                },
+                "url": {
+                  "raw": "{{base_url}}/clients",
+                  "host": ["{{base_url}}"],
+                  "path": ["clients"]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Get Client - Not Found",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test('Status code is 404', function () {",
+                      "    pm.response.to.have.status(404);",
+                      "});",
+                      "",
+                      "pm.test('Not found message', function () {",
+                      "    var jsonData = pm.response.json();",
+                      "    pm.expect(jsonData.message).to.include('not found');",
+                      "});"
+                    ],
+                    "type": "text/javascript"
+                  }
+                }
+              ],
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{base_url}}/clients/99999",
+                  "host": ["{{base_url}}"],
+                  "path": ["clients", "99999"]
+                }
+              },
+              "response": []
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
