@@ -154,6 +154,7 @@ class _CollectionsPageState extends State<CollectionsPage> {
     return AppBar(
       elevation: 0,
       backgroundColor: Colors.white.withOpacity(0.95),
+      centerTitle: false,
       title: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
