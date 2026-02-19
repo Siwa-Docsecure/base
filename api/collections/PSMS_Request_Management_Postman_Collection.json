@@ -1,0 +1,873 @@
+{
+  "info": {
+    "name": "PSMS - Request Management",
+    "description": "Complete request management API endpoints for PSMS\n\n**Request Types:**\n- Retrieval: Request to retrieve stored boxes\n- Collection: Request for box collection from client\n- Destruction: Request to destroy boxes\n- Delivery: Request for box delivery\n\n**Request Flow:**\npending → approved → completed\n   ↓\ncancelled\n\n**Features:**\n- Client self-service request submission\n- Status tracking and updates\n- Bulk approve/complete operations\n- Comprehensive filtering\n- Reports and analytics\n\n**Setup:**\n1. Run '0. Setup - Login' to get token\n2. Token auto-saves to collection variable\n3. All requests use {{access_token}}\n\n**Default Credentials:**\n- Admin: admin / admin123\n- Staff: staff1 / admin123\n- Client: client1 / admin123",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://localhost:3000",
+      "type": "string"
+    },
+    {
+      "key": "access_token",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "test_request_id",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "test_client_id",
+      "value": "1",
+      "type": "string"
+    },
+    {
+      "key": "test_box_id",
+      "value": "5",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "0. Setup",
+      "item": [
+        {
+          "name": "Login as Admin",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "    const response = pm.response.json();",
+                  "    pm.collectionVariables.set('access_token', response.data.accessToken);",
+                  "    pm.environment.set('access_token', response.data.accessToken);",
+                  "    console.log('✅ Admin token saved');",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"admin\",\n  \"password\": \"admin123\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/auth/login",
+              "host": ["{{base_url}}"],
+              "path": ["api", "auth", "login"]
+            }
+          }
+        },
+        {
+          "name": "Login as Staff",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "    const response = pm.response.json();",
+                  "    pm.collectionVariables.set('access_token', response.data.accessToken);",
+                  "    pm.environment.set('access_token', response.data.accessToken);",
+                  "    console.log('✅ Staff token saved');",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"staff1\",\n  \"password\": \"admin123\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/auth/login",
+              "host": ["{{base_url}}"],
+              "path": ["api", "auth", "login"]
+            }
+          }
+        },
+        {
+          "name": "Login as Client",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "    const response = pm.response.json();",
+                  "    pm.collectionVariables.set('access_token', response.data.accessToken);",
+                  "    pm.environment.set('access_token', response.data.accessToken);",
+                  "    console.log('✅ Client token saved');",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"client1\",\n  \"password\": \"admin123\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/auth/login",
+              "host": ["{{base_url}}"],
+              "path": ["api", "auth", "login"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "1. Request Operations",
+      "item": [
+        {
+          "name": "Get All Requests",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/requests?page=1&limit=20",
+              "host": ["{{base_url}}"],
+              "path": ["api", "requests"],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "20"
+                },
+                {
+                  "key": "clientId",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "requestType",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "status",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "search",
+                  "value": "",
+                  "disabled": true
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Request by ID",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/requests/1",
+              "host": ["{{base_url}}"],
+              "path": ["api", "requests", "1"]
+            }
+          }
+        },
+        {
+          "name": "Get My Requests (Client)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/requests/my?page=1",
+              "host": ["{{base_url}}"],
+              "path": ["api", "requests", "my"],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "requestType",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "status",
+                  "value": "",
+                  "disabled": true
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get My Pending Requests",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/requests/my/pending",
+              "host": ["{{base_url}}"],
+              "path": ["api", "requests", "my", "pending"]
+            }
+          }
+        },
+        {
+          "name": "Get Client's Requests",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/requests/client/{{test_client_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["api", "requests", "client", "{{test_client_id}}"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "2. Create Requests (All Types)",
+      "item": [
+        {
+          "name": "Create Retrieval Request",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "    const response = pm.response.json();",
+                  "    pm.collectionVariables.set('test_request_id', response.data.requestId);",
+                  "    console.log('✅ Retrieval request created:', response.data.requestId);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"requestType\": \"retrieval\",\n  \"boxId\": 5,\n  \"details\": \"Needed for annual audit\",\n  \"requestedDate\": \"2025-02-20\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/requests",
+              "host": ["{{base_url}}"],
+              "path": ["api", "requests"]
+            }
+          }
+        },
+        {
+          "name": "Create Collection Request",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "    const response = pm.response.json();",
+                  "    pm.collectionVariables.set('test_request_id', response.data.requestId);",
+                  "    console.log('✅ Collection request created:', response.data.requestId);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"requestType\": \"collection\",\n  \"details\": \"10 boxes of office documents from 2024\",\n  \"requestedDate\": \"2025-02-25\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/requests",
+              "host": ["{{base_url}}"],
+              "path": ["api", "requests"]
+            }
+          }
+        },
+        {
+          "name": "Create Destruction Request",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"requestType\": \"destruction\",\n  \"boxId\": 11,\n  \"details\": \"Retention period expired (2018 + 7 years)\",\n  \"requestedDate\": \"2025-03-01\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/requests",
+              "host": ["{{base_url}}"],
+              "path": ["api", "requests"]
+            }
+          }
+        },
+        {
+          "name": "Create Delivery Request",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"requestType\": \"delivery\",\n  \"details\": \"Deliver boxes to remote office\",\n  \"requestedDate\": \"2025-02-22\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/requests",
+              "host": ["{{base_url}}"],
+              "path": ["api", "requests"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "3. Update & Status",
+      "item": [
+        {
+          "name": "Update Request Details",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"details\": \"Updated: Urgently needed for compliance audit\",\n  \"requestedDate\": \"2025-02-18\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/requests/{{test_request_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["api", "requests", "{{test_request_id}}"]
+            }
+          }
+        },
+        {
+          "name": "Approve Request",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"approved\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/requests/{{test_request_id}}/status",
+              "host": ["{{base_url}}"],
+              "path": ["api", "requests", "{{test_request_id}}", "status"]
+            }
+          }
+        },
+        {
+          "name": "Complete Request",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"completed\",\n  \"completedDate\": \"2025-02-15\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/requests/{{test_request_id}}/status",
+              "host": ["{{base_url}}"],
+              "path": ["api", "requests", "{{test_request_id}}", "status"]
+            }
+          }
+        },
+        {
+          "name": "Cancel Request",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"cancelled\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/requests/{{test_request_id}}/status",
+              "host": ["{{base_url}}"],
+              "path": ["api", "requests", "{{test_request_id}}", "status"]
+            }
+          }
+        },
+        {
+          "name": "Delete Request (Admin)",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/requests/{{test_request_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["api", "requests", "{{test_request_id}}"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "4. Bulk Operations",
+      "item": [
+        {
+          "name": "Bulk Approve Requests",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"requestIds\": [1, 2, 3, 4]\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/requests/bulk/approve",
+              "host": ["{{base_url}}"],
+              "path": ["api", "requests", "bulk", "approve"]
+            }
+          }
+        },
+        {
+          "name": "Bulk Complete Requests",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"requestIds\": [1, 2, 3, 4],\n  \"completedDate\": \"2025-02-15\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/requests/bulk/complete",
+              "host": ["{{base_url}}"],
+              "path": ["api", "requests", "bulk", "complete"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "5. Statistics & Pending",
+      "item": [
+        {
+          "name": "Get Request Statistics",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/requests/stats",
+              "host": ["{{base_url}}"],
+              "path": ["api", "requests", "stats"]
+            }
+          }
+        },
+        {
+          "name": "Get All Pending Requests",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/requests/pending?limit=50",
+              "host": ["{{base_url}}"],
+              "path": ["api", "requests", "pending"],
+              "query": [
+                {
+                  "key": "limit",
+                  "value": "50"
+                },
+                {
+                  "key": "requestType",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "clientId",
+                  "value": "",
+                  "disabled": true
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "6. Reports",
+      "item": [
+        {
+          "name": "Summary Report",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/requests/reports/summary?startDate=2025-02-01&endDate=2025-02-28",
+              "host": ["{{base_url}}"],
+              "path": ["api", "requests", "reports", "summary"],
+              "query": [
+                {
+                  "key": "startDate",
+                  "value": "2025-02-01"
+                },
+                {
+                  "key": "endDate",
+                  "value": "2025-02-28"
+                },
+                {
+                  "key": "clientId",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "requestType",
+                  "value": "",
+                  "disabled": true
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "By Client Report",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/requests/reports/by-client?startDate=2025-01-01",
+              "host": ["{{base_url}}"],
+              "path": ["api", "requests", "reports", "by-client"],
+              "query": [
+                {
+                  "key": "startDate",
+                  "value": "2025-01-01"
+                },
+                {
+                  "key": "endDate",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "requestType",
+                  "value": "",
+                  "disabled": true
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "By Type Report",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/requests/reports/by-type?startDate=2025-01-01",
+              "host": ["{{base_url}}"],
+              "path": ["api", "requests", "reports", "by-type"],
+              "query": [
+                {
+                  "key": "startDate",
+                  "value": "2025-01-01"
+                },
+                {
+                  "key": "endDate",
+                  "value": "",
+                  "disabled": true
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "7. Workflow Tests",
+      "item": [
+        {
+          "name": "Complete Workflow - 1. Create Request",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "    const response = pm.response.json();",
+                  "    pm.collectionVariables.set('test_request_id', response.data.requestId);",
+                  "    console.log('Step 1: Request created:', response.data.requestId);",
+                  "    console.log('Next: Run \"Complete Workflow - 2. Approve\"');",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"requestType\": \"retrieval\",\n  \"boxId\": 5,\n  \"details\": \"Workflow test - audit requirements\",\n  \"requestedDate\": \"2025-02-20\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/requests",
+              "host": ["{{base_url}}"],
+              "path": ["api", "requests"]
+            }
+          }
+        },
+        {
+          "name": "Complete Workflow - 2. Approve",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "    console.log('Step 2: Request approved');",
+                  "    console.log('Next: Run \"Complete Workflow - 3. Complete\"');",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"approved\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/requests/{{test_request_id}}/status",
+              "host": ["{{base_url}}"],
+              "path": ["api", "requests", "{{test_request_id}}", "status"]
+            }
+          }
+        },
+        {
+          "name": "Complete Workflow - 3. Complete",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "    console.log('✅ Workflow complete! Request processed from creation to completion.');",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"completed\",\n  \"completedDate\": \"2025-02-20\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/requests/{{test_request_id}}/status",
+              "host": ["{{base_url}}"],
+              "path": ["api", "requests", "{{test_request_id}}", "status"]
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

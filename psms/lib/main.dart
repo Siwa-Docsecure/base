@@ -7,7 +7,6 @@ import 'package:psms/controllers/client_management_controller.dart';
 import 'package:psms/controllers/collection_controller.dart';
 import 'package:psms/controllers/storage_controller.dart';
 import 'package:psms/controllers/user_management_controller.dart';
-import 'package:psms/screens/warehouse/boxes/box_management_screen.dart';
 
 import 'screens/client/client_home.dart';
 import 'screens/login_screen.dart';

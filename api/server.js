@@ -11,6 +11,8 @@ const boxRoutes = require('./routes/box.routes');
 const collectionRoutes = require('./routes/collection.routes');
 const deliveryRoutes = require('./routes/Delivery.routes');
 const storageRoutes = require('./routes/storage.routes');
+const retrievalRoutes = require('./routes/retrieval.routes');
+const requestRoutes = require('./routes/request.routes');
 const { errorHandler } = require('./middleware/Error.middleware');
 const logger = require('./utils/logger');
 
@@ -64,8 +66,14 @@ app.use('/api/clients', clientRoutes);
 // Box management routes
 app.use('/api/boxes', boxRoutes);
 
+// Request management routes
+app.use('/api/requests', requestRoutes);
+
 // Collection management routes
 app.use('/api/collections', collectionRoutes);
+
+// Retrieval management routes
+app.use('/api/retrievals', retrievalRoutes);
 
 // Delivery management routes
 app.use('/api/deliveries', deliveryRoutes);

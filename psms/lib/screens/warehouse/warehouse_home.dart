@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:psms/controllers/auth_controller.dart';
+import 'package:psms/screens/warehouse/retrievals/retrievals_page.dart';
 import 'package:psms/utils/responsive_helper.dart';
 import 'package:psms/screens/warehouse/boxes/box_management_screen.dart';
 import 'package:psms/screens/warehouse/clients/client_management_page.dart';
@@ -250,7 +251,7 @@ class _WarehouseHomePageState extends State<WarehouseHomePage> {
       case 2:
         return CollectionsPage();
       case 3:
-        return RetrievalsPage(authController: _authController);
+        return RetrievalsPage();
       case 4:
         return DeliveriesPage(authController: _authController);
       case 5:

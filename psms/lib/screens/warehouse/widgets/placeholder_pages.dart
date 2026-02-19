@@ -97,25 +97,25 @@ class _BasePage extends StatelessWidget {
 // }
 
 // Retrievals Page
-class RetrievalsPage extends StatelessWidget {
-  final AuthController authController;
+// class RetrievalsPage extends StatelessWidget {
+//   final AuthController authController;
 
-  const RetrievalsPage({
-    super.key,
-    required this.authController,
-  });
+//   const RetrievalsPage({
+//     super.key,
+//     required this.authController,
+//   });
 
-  @override
-  Widget build(BuildContext context) {
-    return _BasePage(
-      title: 'Retrievals',
-      subtitle: 'Track and manage box retrievals',
-      icon: Icons.find_in_page,
-      iconColor: const Color(0xFFF39C12),
-      authController: authController,
-    );
-  }
-}
+//   @override
+//   Widget build(BuildContext context) {
+//     return _BasePage(
+//       title: 'Retrievals',
+//       subtitle: 'Track and manage box retrievals',
+//       icon: Icons.find_in_page,
+//       iconColor: const Color(0xFFF39C12),
+//       authController: authController,
+//     );
+//   }
+// }
 
 // Deliveries Page
 class DeliveriesPage extends StatelessWidget {

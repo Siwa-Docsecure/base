@@ -419,6 +419,6 @@ class BoxStats {
 // Helper class for generating full box number
 class BoxNumberHelper {
   static String formatBoxNumber(String clientCode, String boxIndex) {
-    return 'BOX-$clientCode-${boxIndex.toUpperCase()}';
+    return '$clientCode-${boxIndex.toUpperCase()}';
   }
 }

@@ -5,6 +5,7 @@ import 'package:get/get.dart';
 import 'package:http/http.dart' as http;
 import 'package:psms/constants/api_constants.dart';
 import 'package:psms/controllers/auth_controller.dart';
+import 'package:psms/models/report_models.dart';
 import 'package:psms/models/box_model.dart';
 import 'package:psms/models/client_model.dart';
 import 'package:psms/models/racking_label_model.dart';
@@ -1075,6 +1076,121 @@ class BoxController extends GetxController {
     }
     return false;
   }
+
+
+  // ============================================
+// REPORT METHODS
+// ============================================
+
+/// Generate a box report for a single client (or all clients if clientId is null)
+Future<BoxReportResponse?> getBoxReport({int? clientId}) async {
+  try {
+    isLoading.value = true;
+    errorMessage.value = '';
+
+    final params = <String, String>{};
+    if (clientId != null && clientId > 0) {
+      params['clientId'] = clientId.toString();
+    }
+
+    final uri = Uri.parse(
+      '${ApiConstants.baseUrl}${ApiConstants.boxReportSingle}',
+    ).replace(queryParameters: params);
+
+    final response = await http.get(uri, headers: getAuthHeaders());
+
+    if (response.statusCode == 200) {
+      final responseData = json.decode(response.body);
+
+      if (responseData['status'] == 'success' && responseData['data'] != null) {
+        return BoxReportResponse.fromJson(responseData['data']);
+      } else {
+        errorMessage.value = responseData['message'] ?? 'Failed to generate report';
+        Get.snackbar(
+          'Error',
+          errorMessage.value,
+          backgroundColor: Colors.red,
+          colorText: Colors.white,
+        );
+      }
+    } else {
+      final errorResponse = json.decode(response.body);
+      errorMessage.value = errorResponse['message'] ?? 'Failed to generate report';
+      Get.snackbar(
+        'Error',
+        errorMessage.value,
+        backgroundColor: Colors.red,
+        colorText: Colors.white,
+      );
+    }
+  } catch (e) {
+    errorMessage.value = 'Connection error: $e';
+    Get.snackbar(
+      'Error',
+      'Connection error: $e',
+      backgroundColor: Colors.red,
+      colorText: Colors.white,
+    );
+  } finally {
+    isLoading.value = false;
+  }
+  return null;
+}
+
+/// Generate a bulk box report for multiple clients (comma-separated clientIds)
+Future<BulkBoxReportResponse?> getBulkBoxReport({List<int>? clientIds}) async {
+  try {
+    isLoading.value = true;
+    errorMessage.value = '';
+
+    final params = <String, String>{};
+    if (clientIds != null && clientIds.isNotEmpty) {
+      params['clientIds'] = clientIds.join(',');
+    }
+
+    final uri = Uri.parse(
+      '${ApiConstants.baseUrl}${ApiConstants.boxReportBulk}',
+    ).replace(queryParameters: params);
+
+    final response = await http.get(uri, headers: getAuthHeaders());
+
+    if (response.statusCode == 200) {
+      final responseData = json.decode(response.body);
+
+      if (responseData['status'] == 'success' && responseData['data'] != null) {
+        return BulkBoxReportResponse.fromJson(responseData['data']);
+      } else {
+        errorMessage.value = responseData['message'] ?? 'Failed to generate bulk report';
+        Get.snackbar(
+          'Error',
+          errorMessage.value,
+          backgroundColor: Colors.red,
+          colorText: Colors.white,
+        );
+      }
+    } else {
+      final errorResponse = json.decode(response.body);
+      errorMessage.value = errorResponse['message'] ?? 'Failed to generate bulk report';
+      Get.snackbar(
+        'Error',
+        errorMessage.value,
+        backgroundColor: Colors.red,
+        colorText: Colors.white,
+      );
+    }
+  } catch (e) {
+    errorMessage.value = 'Connection error: $e';
+    Get.snackbar(
+      'Error',
+      'Connection error: $e',
+      backgroundColor: Colors.red,
+      colorText: Colors.white,
+    );
+  } finally {
+    isLoading.value = false;
+  }
+  return null;
+}
 
   // ============================================
   // HELPER METHODS
