@@ -5,6 +5,10 @@ class BoxModel {
   final int boxId;
   final String boxNumber;
   final String description;
+  final String? boxSize; // new
+  final String? dataYears; // new – comma-separated years
+  final String? dateRange; // new – descriptive date range
+  final String? boxImage; // new – path to image
   final DateTime dateReceived;
   final int yearReceived;
   final int retentionYears;
@@ -20,6 +24,10 @@ class BoxModel {
     required this.boxId,
     required this.boxNumber,
     required this.description,
+    this.boxSize,
+    this.dataYears,
+    this.dateRange,
+    this.boxImage,
     required this.dateReceived,
     required this.yearReceived,
     required this.retentionYears,
@@ -37,6 +45,10 @@ class BoxModel {
       boxId: json['boxId'] ?? json['box_id'] ?? 0,
       boxNumber: json['boxNumber'] ?? json['box_number'] ?? '',
       description: json['description'] ?? json['box_description'] ?? '',
+      boxSize: json['boxSize'] ?? json['box_size'],
+      dataYears: json['dataYears'] ?? json['data_years'],
+      dateRange: json['dateRange'] ?? json['date_range'],
+      boxImage: json['boxImage'] ?? json['box_image'],
       dateReceived: json['dateReceived'] != null
           ? DateTime.parse(json['dateReceived'])
           : json['date_received'] != null
@@ -46,8 +58,9 @@ class BoxModel {
       retentionYears: json['retentionYears'] ?? json['retention_years'] ?? 7,
       destructionYear: json['destructionYear'] ?? json['destruction_year'],
       status: json['status'] ?? 'stored',
-      isPendingDestruction: json['isPendingDestruction'] ?? 
-                           json['is_pending_destruction'] ?? false,
+      isPendingDestruction: json['isPendingDestruction'] ??
+          json['is_pending_destruction'] ??
+          false,
       createdAt: json['createdAt'] != null
           ? DateTime.parse(json['createdAt'])
           : json['created_at'] != null
@@ -58,11 +71,12 @@ class BoxModel {
           : json['updated_at'] != null
               ? DateTime.parse(json['updated_at'])
               : DateTime.now(),
-      client: BoxClient.fromJson(json['client'] ?? {
-        'clientId': json['client_id'] ?? 0,
-        'clientName': json['client_name'] ?? '',
-        'clientCode': json['client_code'] ?? '',
-      }),
+      client: BoxClient.fromJson(json['client'] ??
+          {
+            'clientId': json['client_id'] ?? 0,
+            'clientName': json['client_name'] ?? '',
+            'clientCode': json['client_code'] ?? '',
+          }),
       rackingLabel: json['rackingLabel'] != null
           ? BoxRackingLabel.fromJson(json['rackingLabel'])
           : json['racking_label'] != null
@@ -76,6 +90,10 @@ class BoxModel {
       'boxId': boxId,
       'boxNumber': boxNumber,
       'description': description,
+      'boxSize': boxSize,
+      'dataYears': dataYears,
+      'dateRange': dateRange,
+      'boxImage': boxImage,
       'dateReceived': dateReceived.toIso8601String(),
       'yearReceived': yearReceived,
       'retentionYears': retentionYears,
@@ -90,17 +108,17 @@ class BoxModel {
   }
 
   String toJsonString() => json.encode(toJson());
-  
+
   factory BoxModel.fromJsonString(String jsonString) {
     final Map<String, dynamic> json = jsonDecode(jsonString);
     return BoxModel.fromJson(json);
   }
 
-  // Helper methods
   bool get canBeRetrieved => status == 'stored';
-  bool get canBeDestroyed => status == 'stored' && (isPendingDestruction || status == 'pending');
+  bool get canBeDestroyed =>
+      status == 'stored' && (isPendingDestruction || status == 'pending');
   bool get canBeStored => status == 'retrieved';
-  
+
   String get statusDisplay {
     switch (status) {
       case 'stored':
@@ -113,7 +131,7 @@ class BoxModel {
         return status;
     }
   }
-  
+
   String get statusColor {
     switch (status) {
       case 'stored':
@@ -127,11 +145,10 @@ class BoxModel {
     }
   }
 
-  // Get box index from box number (extract after the client code)
   String get boxIndex {
     final parts = boxNumber.split('-');
     if (parts.length >= 3) {
-      return parts.sublist(2).join('-'); // Return everything after client code
+      return parts.sublist(2).join('-');
     }
     return boxNumber;
   }
@@ -197,32 +214,44 @@ class BoxRackingLabel {
   }
 }
 
-// Request Models
+// Request Models (updated with new fields)
 class CreateBoxRequest {
   final int clientId;
-  final String boxIndex; // Required field for custom indexing
+  final String boxIndex; // required
   final int? rackingLabelId;
   final String boxDescription;
   final String dateReceived;
   final int retentionYears;
+  final String? boxSize; // new
+  final String? dataYears; // new
+  final String? dateRange; // new
+  final String? boxImage; // new
 
   CreateBoxRequest({
     required this.clientId,
-    required this.boxIndex, // Now required
+    required this.boxIndex,
     this.rackingLabelId,
     required this.boxDescription,
     required this.dateReceived,
     this.retentionYears = 7,
+    this.boxSize,
+    this.dataYears,
+    this.dateRange,
+    this.boxImage,
   });
 
   Map<String, dynamic> toJson() {
     return {
       'clientId': clientId,
-      'boxIndex': boxIndex, // Changed from boxNumber to boxIndex
+      'boxIndex': boxIndex,
       if (rackingLabelId != null) 'rackingLabelId': rackingLabelId,
       'boxDescription': boxDescription,
       'dateReceived': dateReceived,
       'retentionYears': retentionYears,
+      if (boxSize != null) 'boxSize': boxSize,
+      if (dataYears != null) 'dataYears': dataYears,
+      if (dateRange != null) 'dateRange': dateRange,
+      if (boxImage != null) 'boxImage': boxImage,
     };
   }
 }
@@ -231,11 +260,19 @@ class UpdateBoxRequest {
   final String? boxDescription;
   final int? rackingLabelId;
   final int? retentionYears;
+  final String? boxSize; // new
+  final String? dataYears; // new
+  final String? dateRange; // new
+  final String? boxImage; // new
 
   UpdateBoxRequest({
     this.boxDescription,
     this.rackingLabelId,
     this.retentionYears,
+    this.boxSize,
+    this.dataYears,
+    this.dateRange,
+    this.boxImage,
   });
 
   Map<String, dynamic> toJson() {
@@ -243,32 +280,25 @@ class UpdateBoxRequest {
     if (boxDescription != null) data['boxDescription'] = boxDescription;
     if (rackingLabelId != null) data['rackingLabelId'] = rackingLabelId;
     if (retentionYears != null) data['retentionYears'] = retentionYears;
+    if (boxSize != null) data['boxSize'] = boxSize;
+    if (dataYears != null) data['dataYears'] = dataYears;
+    if (dateRange != null) data['dateRange'] = dateRange;
+    if (boxImage != null) data['boxImage'] = boxImage;
     return data;
   }
 }
 
-class ChangeBoxStatusRequest {
-  final String status;
-
-  ChangeBoxStatusRequest({
-    required this.status,
-  });
-
-  Map<String, dynamic> toJson() {
-    return {
-      'status': status,
-    };
-  }
-}
-
-// Individual box data for bulk creation
 class BulkBoxData {
   final int clientId;
-  final String boxIndex; // Required for each box in bulk
+  final String boxIndex;
   final String boxDescription;
   final String dateReceived;
   final int retentionYears;
   final int? rackingLabelId;
+  final String? boxSize; // new
+  final String? dataYears; // new
+  final String? dateRange; // new
+  final String? boxImage; // new
 
   BulkBoxData({
     required this.clientId,
@@ -277,6 +307,10 @@ class BulkBoxData {
     required this.dateReceived,
     this.retentionYears = 7,
     this.rackingLabelId,
+    this.boxSize,
+    this.dataYears,
+    this.dateRange,
+    this.boxImage,
   });
 
   Map<String, dynamic> toJson() {
@@ -287,6 +321,10 @@ class BulkBoxData {
       'dateReceived': dateReceived,
       'retentionYears': retentionYears,
       if (rackingLabelId != null) 'rackingLabelId': rackingLabelId,
+      if (boxSize != null) 'boxSize': boxSize,
+      if (dataYears != null) 'dataYears': dataYears,
+      if (dateRange != null) 'dateRange': dateRange,
+      if (boxImage != null) 'boxImage': boxImage,
     };
   }
 }
@@ -294,9 +332,7 @@ class BulkBoxData {
 class BulkCreateBoxRequest {
   final List<BulkBoxData> boxes;
 
-  BulkCreateBoxRequest({
-    required this.boxes,
-  });
+  BulkCreateBoxRequest({required this.boxes});
 
   Map<String, dynamic> toJson() {
     return {
@@ -309,10 +345,7 @@ class BulkUpdateStatusRequest {
   final List<int> boxIds;
   final String status;
 
-  BulkUpdateStatusRequest({
-    required this.boxIds,
-    required this.status,
-  });
+  BulkUpdateStatusRequest({required this.boxIds, required this.status});
 
   Map<String, dynamic> toJson() {
     return {
@@ -322,17 +355,13 @@ class BulkUpdateStatusRequest {
   }
 }
 
-// Response Models
+// Response Models (unchanged, but BoxModel now includes new fields)
 class BoxesResponse {
   final String status;
   final String message;
   final BoxesData? data;
 
-  BoxesResponse({
-    required this.status,
-    required this.message,
-    this.data,
-  });
+  BoxesResponse({required this.status, required this.message, this.data});
 
   factory BoxesResponse.fromJson(Map<String, dynamic> json) {
     return BoxesResponse(
@@ -347,17 +376,14 @@ class BoxesData {
   final List<BoxModel> boxes;
   final Pagination? pagination;
 
-  BoxesData({
-    required this.boxes,
-    this.pagination,
-  });
+  BoxesData({required this.boxes, this.pagination});
 
   factory BoxesData.fromJson(Map<String, dynamic> json) {
     return BoxesData(
       boxes: (json['boxes'] as List<dynamic>)
           .map((box) => BoxModel.fromJson(box))
           .toList(),
-      pagination: json['pagination'] != null 
+      pagination: json['pagination'] != null
           ? Pagination.fromJson(json['pagination'])
           : null,
     );
@@ -416,7 +442,20 @@ class BoxStats {
   }
 }
 
-// Helper class for generating full box number
+class ChangeBoxStatusRequest {
+  final String status;
+
+  ChangeBoxStatusRequest({
+    required this.status,
+  });
+
+  Map<String, dynamic> toJson() {
+    return {
+      'status': status,
+    };
+  }
+}
+
 class BoxNumberHelper {
   static String formatBoxNumber(String clientCode, String boxIndex) {
     return '$clientCode-${boxIndex.toUpperCase()}';

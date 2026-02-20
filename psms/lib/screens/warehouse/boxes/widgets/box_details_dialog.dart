@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:psms/models/box_model.dart';
 
-// Box Details Dialog - Professional redesign
 class BoxDetailsDialog extends StatelessWidget {
   final BoxModel box;
 
@@ -15,11 +14,10 @@ class BoxDetailsDialog extends StatelessWidget {
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       backgroundColor: Colors.transparent,
       child: Container(
-        width: 700, // Fixed width
-        height: MediaQuery.of(context).size.height *
-            0.9, // Fixed height at 80% of screen
+        width: 700,
+        height: MediaQuery.of(context).size.height * 0.9,
         constraints: BoxConstraints(
-          minHeight: 600, // Minimum height
+          minHeight: 600,
           maxHeight: MediaQuery.of(context).size.height * 0.9,
         ),
         decoration: BoxDecoration(
@@ -70,8 +68,7 @@ class BoxDetailsDialog extends StatelessWidget {
                         ),
                         SizedBox(height: 4),
                         Container(
-                          padding:
-                              EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                          padding: EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                           decoration: BoxDecoration(
                             color: Colors.white.withOpacity(0.3),
                             borderRadius: BorderRadius.circular(12),
@@ -134,7 +131,7 @@ class BoxDetailsDialog extends StatelessWidget {
 
                     SizedBox(height: 16),
 
-                    // Box Details Card
+                    // Box Information Card (updated with new fields)
                     _buildInfoCard(
                       icon: Icons.inventory_2,
                       title: 'Box Information',
@@ -166,6 +163,25 @@ class BoxDetailsDialog extends StatelessWidget {
                           box.destructionYear?.toString() ?? 'N/A',
                         ),
 
+                        // New fields
+                        if (box.boxSize != null) ...[
+                          Divider(height: 16),
+                          _buildDetailRow('Box Size', box.boxSize!),
+                        ],
+                        if (box.dataYears != null) ...[
+                          Divider(height: 16),
+                          _buildDetailRow('Data Years', box.dataYears!),
+                        ],
+                        if (box.dateRange != null) ...[
+                          Divider(height: 16),
+                          _buildDetailRow('Date Range', box.dateRange!),
+                        ],
+                        if (box.boxImage != null) ...[
+                          Divider(height: 16),
+                          _buildDetailRow('Box Image', box.boxImage!),
+                          // Optional: Add a button to view image
+                        ],
+
                         // Pending destruction warning
                         if (box.isPendingDestruction) ...[
                           SizedBox(height: 12),
@@ -174,8 +190,7 @@ class BoxDetailsDialog extends StatelessWidget {
                             decoration: BoxDecoration(
                               color: Colors.orange[50],
                               borderRadius: BorderRadius.circular(8),
-                              border:
-                                  Border.all(color: Colors.orange, width: 1.5),
+                              border: Border.all(color: Colors.orange, width: 1.5),
                             ),
                             child: Row(
                               children: [
@@ -184,8 +199,7 @@ class BoxDetailsDialog extends StatelessWidget {
                                 SizedBox(width: 12),
                                 Expanded(
                                   child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
+                                    crossAxisAlignment: CrossAxisAlignment.start,
                                     children: [
                                       Text(
                                         'Pending Destruction',
@@ -221,11 +235,9 @@ class BoxDetailsDialog extends StatelessWidget {
                         icon: Icons.location_on,
                         title: 'Storage Location',
                         children: [
-                          _buildDetailRow(
-                              'Label Code', box.rackingLabel!.labelCode),
+                          _buildDetailRow('Label Code', box.rackingLabel!.labelCode),
                           Divider(height: 16),
-                          _buildDetailRow(
-                              'Location', box.rackingLabel!.location),
+                          _buildDetailRow('Location', box.rackingLabel!.location),
                         ],
                       )
                     else
@@ -263,14 +275,12 @@ class BoxDetailsDialog extends StatelessWidget {
                       children: [
                         _buildDetailRow(
                           'Created',
-                          DateFormat('MMM dd, yyyy - HH:mm')
-                              .format(box.createdAt),
+                          DateFormat('MMM dd, yyyy - HH:mm').format(box.createdAt),
                         ),
                         Divider(height: 16),
                         _buildDetailRow(
                           'Last Updated',
-                          DateFormat('MMM dd, yyyy - HH:mm')
-                              .format(box.updatedAt),
+                          DateFormat('MMM dd, yyyy - HH:mm').format(box.updatedAt),
                         ),
                       ],
                     ),
@@ -327,8 +337,7 @@ class BoxDetailsDialog extends StatelessWidget {
               decoration: BoxDecoration(
                 color: Colors.grey[50],
                 border: Border(top: BorderSide(color: Colors.grey[200]!)),
-                borderRadius:
-                    BorderRadius.vertical(bottom: Radius.circular(16)),
+                borderRadius: BorderRadius.vertical(bottom: Radius.circular(16)),
               ),
               child: Row(
                 children: [

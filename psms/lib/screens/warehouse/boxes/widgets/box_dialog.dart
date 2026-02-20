@@ -8,9 +8,8 @@ import 'package:psms/models/box_model.dart';
 import 'package:psms/models/client_model.dart';
 import 'package:psms/models/racking_label_model.dart';
 
-// Unified Box Dialog for both Create and Edit
 class BoxDialog extends StatefulWidget {
-  final BoxModel? box; // null for create, not null for edit
+  final BoxModel? box;
 
   BoxDialog({this.box});
 
@@ -32,6 +31,12 @@ class _BoxDialogState extends State<BoxDialog> {
   final TextEditingController _retentionController =
       TextEditingController(text: '7');
 
+  // New field controllers
+  final TextEditingController _boxSizeController = TextEditingController();
+  final TextEditingController _dataYearsController = TextEditingController();
+  final TextEditingController _dateRangeController = TextEditingController();
+  final TextEditingController _boxImageController = TextEditingController();
+
   String _boxNumberPreview = '';
   bool _isEditMode = false;
   bool _loadingLocations = false;
@@ -43,7 +48,6 @@ class _BoxDialogState extends State<BoxDialog> {
     _isEditMode = widget.box != null;
 
     if (_isEditMode) {
-      // Edit mode: populate fields with existing box data
       final box = widget.box!;
       _selectedClientId = box.client.clientId;
       _clientCode = box.client.clientCode;
@@ -52,16 +56,20 @@ class _BoxDialogState extends State<BoxDialog> {
       _descriptionController.text = box.description;
       _dateController.text = DateFormat('yyyy-MM-dd').format(box.dateReceived);
       _retentionController.text = box.retentionYears.toString();
+
+      // Populate new fields
+      _boxSizeController.text = box.boxSize ?? '';
+      _dataYearsController.text = box.dataYears ?? '';
+      _dateRangeController.text = box.dateRange ?? '';
+      _boxImageController.text = box.boxImage ?? '';
+
       _boxNumberPreview = box.boxNumber;
     } else {
-      // Create mode: set defaults
       _dateController.text = DateFormat('yyyy-MM-dd').format(DateTime.now());
     }
 
-    // Listen to box index changes to update preview
     _boxIndexController.addListener(_updateBoxNumberPreview);
 
-    // Load available storage locations when dialog opens
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _loadAvailableLocations();
     });
@@ -70,11 +78,14 @@ class _BoxDialogState extends State<BoxDialog> {
   @override
   void dispose() {
     _boxIndexController.removeListener(_updateBoxNumberPreview);
+    _boxSizeController.dispose();
+    _dataYearsController.dispose();
+    _dateRangeController.dispose();
+    _boxImageController.dispose();
     super.dispose();
   }
 
   String _extractBoxIndex(String fullBoxNumber) {
-    // Extract box index from full box number (e.g., "CLIENT-CODE-BOX-001" -> "001")
     final parts = fullBoxNumber.split('-');
     if (parts.length >= 2) {
       return parts.last;
@@ -105,17 +116,12 @@ class _BoxDialogState extends State<BoxDialog> {
     });
 
     try {
-      // First try to load all locations
       if (storageController.storageLocations.isEmpty) {
         await storageController.getAllLocations();
       }
-
-      // Then get available locations
       if (storageController.availableLocations.isEmpty) {
         await storageController.getAvailableLocations();
       }
-
-      // If still empty, try BoxController as fallback
       if (storageController.availableLocations.isEmpty &&
           boxController.availableRackingLabels.isEmpty) {
         await boxController.getAvailableRackingLabels();
@@ -130,27 +136,20 @@ class _BoxDialogState extends State<BoxDialog> {
   }
 
   List<RackingLabelModel> get _availableLocations {
-    // Try StorageController first
     if (storageController.availableLocations.isNotEmpty) {
       return storageController.availableLocations;
     }
-
-    // Fall back to BoxController
     if (boxController.availableRackingLabels.isNotEmpty) {
       return boxController.availableRackingLabels;
     }
-
-    // If no available locations, show all locations (for edit mode)
     if (_isEditMode && storageController.storageLocations.isNotEmpty) {
       return storageController.storageLocations;
     }
-
     return [];
   }
 
   void _onClientChanged(int? clientId) {
     if (_isEditMode) {
-      // In edit mode, don't allow changing client
       Get.snackbar(
         'Info',
         'Cannot change client for existing box',
@@ -179,9 +178,8 @@ class _BoxDialogState extends State<BoxDialog> {
       backgroundColor: Colors.transparent,
       child: Container(
         constraints: BoxConstraints(
-          maxWidth: 650, // Add this line
-          maxHeight: MediaQuery.of(context).size.height *
-              0.8, // Change from 0.9 to 0.8
+          maxWidth: 650,
+          maxHeight: MediaQuery.of(context).size.height * 0.8,
         ),
         decoration: BoxDecoration(
           color: Colors.white,
@@ -193,8 +191,7 @@ class _BoxDialogState extends State<BoxDialog> {
             Container(
               padding: EdgeInsets.symmetric(horizontal: 20, vertical: 12),
               decoration: BoxDecoration(
-                color:
-                    _isEditMode ? Colors.orange.shade700 : Colors.blue.shade700,
+                color: _isEditMode ? Colors.orange.shade700 : Colors.blue.shade700,
                 borderRadius: BorderRadius.only(
                   topLeft: Radius.circular(16.0),
                   topRight: Radius.circular(16.0),
@@ -228,11 +225,10 @@ class _BoxDialogState extends State<BoxDialog> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        // Box Number Preview/Display
+                        // Box Number Preview
                         if (_boxNumberPreview.isNotEmpty)
                           Container(
-                            padding: EdgeInsets.symmetric(
-                                vertical: 12, horizontal: 16),
+                            padding: EdgeInsets.symmetric(vertical: 12, horizontal: 16),
                             margin: EdgeInsets.only(bottom: 16),
                             decoration: BoxDecoration(
                               color: _isEditMode
@@ -267,7 +263,7 @@ class _BoxDialogState extends State<BoxDialog> {
                             ),
                           ),
 
-                        // Client selection (disabled in edit mode)
+                        // Client selection
                         Container(
                           decoration: BoxDecoration(
                             borderRadius: BorderRadius.circular(8),
@@ -275,12 +271,9 @@ class _BoxDialogState extends State<BoxDialog> {
                           ),
                           child: ListTile(
                             leading: Icon(Icons.business,
-                                color: _isEditMode
-                                    ? Colors.orange
-                                    : Colors.blue.shade700),
+                                color: _isEditMode ? Colors.orange : Colors.blue.shade700),
                             title: Obx(() {
                               if (_isEditMode) {
-                                // Show client as read-only in edit mode
                                 final client = boxController.clients.firstWhere(
                                   (c) => c.clientId == _selectedClientId,
                                   orElse: () => ClientModel(
@@ -332,7 +325,7 @@ class _BoxDialogState extends State<BoxDialog> {
                           ),
                         SizedBox(height: 20),
 
-                        // Box Index (disabled in edit mode)
+                        // Box Index
                         TextFormField(
                           controller: _boxIndexController,
                           decoration: InputDecoration(
@@ -342,19 +335,13 @@ class _BoxDialogState extends State<BoxDialog> {
                             prefixIcon: Icon(Icons.tag),
                             suffixIcon: _clientCode != null && !_isEditMode
                                 ? Container(
-                                    padding:
-                                        EdgeInsets.symmetric(horizontal: 8),
+                                    padding: EdgeInsets.symmetric(horizontal: 8),
                                     child: Text(
                                       _clientCode!,
-                                      style: TextStyle(
-                                          fontWeight: FontWeight.bold),
+                                      style: TextStyle(fontWeight: FontWeight.bold),
                                     ),
                                   )
                                 : null,
-                            prefixText:
-                                _selectedClientId != null && !_isEditMode
-                                    ? ''
-                                    : '',
                           ),
                           readOnly: _isEditMode,
                           validator: (value) {
@@ -366,9 +353,7 @@ class _BoxDialogState extends State<BoxDialog> {
                             }
                             return null;
                           },
-                          onChanged: _isEditMode
-                              ? null
-                              : (value) => _updateBoxNumberPreview(),
+                          onChanged: _isEditMode ? null : (value) => _updateBoxNumberPreview(),
                         ),
                         SizedBox(height: 20),
 
@@ -390,9 +375,9 @@ class _BoxDialogState extends State<BoxDialog> {
                         ),
                         SizedBox(height: 20),
 
+                        // Date received and retention
                         Row(
                           children: [
-                            // Date received (disabled in edit mode)
                             Expanded(
                               child: TextFormField(
                                 controller: _dateController,
@@ -414,8 +399,7 @@ class _BoxDialogState extends State<BoxDialog> {
                                         if (date != null) {
                                           setState(() {
                                             _dateController.text =
-                                                DateFormat('yyyy-MM-dd')
-                                                    .format(date);
+                                                DateFormat('yyyy-MM-dd').format(date);
                                           });
                                         }
                                       },
@@ -428,8 +412,6 @@ class _BoxDialogState extends State<BoxDialog> {
                               ),
                             ),
                             SizedBox(width: 16),
-
-                            // Retention years
                             Expanded(
                               child: TextFormField(
                                 controller: _retentionController,
@@ -462,7 +444,7 @@ class _BoxDialogState extends State<BoxDialog> {
 
                         SizedBox(height: 20),
 
-                        // Storage Location Selection
+                        // Storage Location
                         Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
@@ -487,12 +469,10 @@ class _BoxDialogState extends State<BoxDialog> {
                                     SizedBox(
                                       width: 20,
                                       height: 20,
-                                      child: CircularProgressIndicator(
-                                          strokeWidth: 2),
+                                      child: CircularProgressIndicator(strokeWidth: 2),
                                     ),
                                     SizedBox(width: 12),
-                                    Text(
-                                        'Loading available storage locations...'),
+                                    Text('Loading available storage locations...'),
                                   ],
                                 ),
                               )
@@ -502,8 +482,7 @@ class _BoxDialogState extends State<BoxDialog> {
                                 decoration: BoxDecoration(
                                   color: Colors.red.shade50,
                                   borderRadius: BorderRadius.circular(8),
-                                  border:
-                                      Border.all(color: Colors.red.shade200),
+                                  border: Border.all(color: Colors.red.shade200),
                                 ),
                                 child: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -513,16 +492,13 @@ class _BoxDialogState extends State<BoxDialog> {
                                         Icon(Icons.error_outline,
                                             color: Colors.red, size: 20),
                                         SizedBox(width: 8),
-                                        Expanded(
-                                            child: Text(
-                                                'Error loading locations')),
+                                        Expanded(child: Text('Error loading locations')),
                                       ],
                                     ),
                                     SizedBox(height: 4),
                                     Text(
                                       _locationError,
-                                      style: TextStyle(
-                                          fontSize: 12, color: Colors.red),
+                                      style: TextStyle(fontSize: 12, color: Colors.red),
                                     ),
                                   ],
                                 ),
@@ -533,8 +509,7 @@ class _BoxDialogState extends State<BoxDialog> {
                                 decoration: BoxDecoration(
                                   color: Colors.orange.shade50,
                                   borderRadius: BorderRadius.circular(8),
-                                  border:
-                                      Border.all(color: Colors.orange.shade200),
+                                  border: Border.all(color: Colors.orange.shade200),
                                 ),
                                 child: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -544,23 +519,18 @@ class _BoxDialogState extends State<BoxDialog> {
                                         Icon(Icons.warning_amber,
                                             color: Colors.orange, size: 20),
                                         SizedBox(width: 8),
-                                        Expanded(
-                                            child:
-                                                Text('No Available Locations')),
+                                        Expanded(child: Text('No Available Locations')),
                                       ],
                                     ),
                                     SizedBox(height: 4),
                                     Text(
                                       'All storage locations are currently assigned.',
                                       style: TextStyle(
-                                          fontSize: 12,
-                                          color: Colors.orange.shade800),
+                                          fontSize: 12, color: Colors.orange.shade800),
                                     ),
-                                    if (_isEditMode &&
-                                        widget.box?.rackingLabel != null)
+                                    if (_isEditMode && widget.box?.rackingLabel != null)
                                       Column(
-                                        crossAxisAlignment:
-                                            CrossAxisAlignment.start,
+                                        crossAxisAlignment: CrossAxisAlignment.start,
                                         children: [
                                           SizedBox(height: 8),
                                           Text(
@@ -578,8 +548,7 @@ class _BoxDialogState extends State<BoxDialog> {
                               Container(
                                 decoration: BoxDecoration(
                                   borderRadius: BorderRadius.circular(8),
-                                  border:
-                                      Border.all(color: Colors.grey.shade300),
+                                  border: Border.all(color: Colors.grey.shade300),
                                 ),
                                 child: Column(
                                   children: [
@@ -590,16 +559,13 @@ class _BoxDialogState extends State<BoxDialog> {
                                         value: _selectedRackingLabelId,
                                         isExpanded: true,
                                         underline: SizedBox(),
-                                        hint:
-                                            Text('Select location (optional)'),
+                                        hint: Text('Select location (optional)'),
                                         items: [
                                           DropdownMenuItem(
                                             value: null,
-                                            child: Text(
-                                                'No location (assign later)'),
+                                            child: Text('No location (assign later)'),
                                           ),
-                                          ..._availableLocations
-                                              .map((location) {
+                                          ..._availableLocations.map((location) {
                                             return DropdownMenuItem(
                                               value: location.labelId,
                                               child: Column(
@@ -611,51 +577,37 @@ class _BoxDialogState extends State<BoxDialog> {
                                                       Text(
                                                         location.labelCode,
                                                         style: TextStyle(
-                                                            fontWeight:
-                                                                FontWeight
-                                                                    .w500),
+                                                            fontWeight: FontWeight.w500),
                                                       ),
                                                       SizedBox(width: 8),
                                                       if (location.isAvailable)
                                                         Chip(
-                                                          label: Text(
-                                                              'Available',
-                                                              style: TextStyle(
-                                                                  fontSize:
-                                                                      10)),
+                                                          label: Text('Available',
+                                                              style:
+                                                                  TextStyle(fontSize: 10)),
                                                           backgroundColor:
-                                                              Colors.green
-                                                                  .shade100,
-                                                          padding: EdgeInsets
-                                                              .symmetric(
-                                                                  horizontal:
-                                                                      4),
+                                                              Colors.green.shade100,
+                                                          padding: EdgeInsets.symmetric(
+                                                              horizontal: 4),
                                                         )
                                                       else
                                                         Chip(
                                                           label: Text('In Use',
-                                                              style: TextStyle(
-                                                                  fontSize:
-                                                                      10)),
+                                                              style:
+                                                                  TextStyle(fontSize: 10)),
                                                           backgroundColor:
-                                                              Colors.orange
-                                                                  .shade100,
-                                                          padding: EdgeInsets
-                                                              .symmetric(
-                                                                  horizontal:
-                                                                      4),
+                                                              Colors.orange.shade100,
+                                                          padding: EdgeInsets.symmetric(
+                                                              horizontal: 4),
                                                         ),
                                                     ],
                                                   ),
                                                   Text(
-                                                    location
-                                                        .locationDescription,
+                                                    location.locationDescription,
                                                     style: TextStyle(
-                                                        fontSize: 12,
-                                                        color: Colors.grey),
+                                                        fontSize: 12, color: Colors.grey),
                                                     maxLines: 1,
-                                                    overflow:
-                                                        TextOverflow.ellipsis,
+                                                    overflow: TextOverflow.ellipsis,
                                                   ),
                                                 ],
                                               ),
@@ -681,8 +633,7 @@ class _BoxDialogState extends State<BoxDialog> {
                                           Text(
                                             '${_availableLocations.length} locations',
                                             style: TextStyle(
-                                                fontSize: 12,
-                                                color: Colors.grey),
+                                                fontSize: 12, color: Colors.grey),
                                           ),
                                           IconButton(
                                             icon: Icon(Icons.refresh, size: 18),
@@ -696,6 +647,88 @@ class _BoxDialogState extends State<BoxDialog> {
                                 ),
                               ),
                           ],
+                        ),
+
+                        SizedBox(height: 20),
+
+                        // ========== NEW ADDITIONAL DETAILS SECTION ==========
+                        Text(
+                          'Additional Details',
+                          style: TextStyle(
+                            fontWeight: FontWeight.w500,
+                            fontSize: 16,
+                            color: Colors.grey.shade700,
+                          ),
+                        ),
+                        SizedBox(height: 8),
+
+                        // Box Size dropdown
+                        Container(
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(color: Colors.grey.shade300),
+                          ),
+                          child: ListTile(
+                            leading: Icon(Icons.crop_square, color: Colors.blue.shade700),
+                            title: DropdownButtonFormField<String?>(
+                              value: _boxSizeController.text.isEmpty
+                                  ? null
+                                  : _boxSizeController.text,
+                              isExpanded: true,
+                              decoration: InputDecoration(
+                                border: InputBorder.none,
+                                hintText: 'Select box size (optional)',
+                              ),
+                              items: [
+                                DropdownMenuItem(value: null, child: Text('None')),
+                                ...['A0', 'A1', 'A2', 'A3', 'A4', 'A5', 'A6', 'Custom']
+                                    .map((size) {
+                                  return DropdownMenuItem(value: size, child: Text(size));
+                                }).toList(),
+                              ],
+                              onChanged: (value) {
+                                setState(() {
+                                  _boxSizeController.text = value ?? '';
+                                });
+                              },
+                            ),
+                          ),
+                        ),
+                        SizedBox(height: 12),
+
+                        // Data Years
+                        TextFormField(
+                          controller: _dataYearsController,
+                          decoration: InputDecoration(
+                            labelText: 'Data Years (comma-separated)',
+                            hintText: 'e.g., 2019,2020,2021',
+                            border: OutlineInputBorder(),
+                            prefixIcon: Icon(Icons.date_range),
+                          ),
+                        ),
+                        SizedBox(height: 12),
+
+                        // Date Range
+                        TextFormField(
+                          controller: _dateRangeController,
+                          decoration: InputDecoration(
+                            labelText: 'Date Range',
+                            hintText: 'e.g., 08-15 Aug 2022, 20-25 March 2023',
+                            border: OutlineInputBorder(),
+                            prefixIcon: Icon(Icons.calendar_today),
+                          ),
+                        ),
+                        SizedBox(height: 12),
+
+                        // Box Image
+                        TextFormField(
+                          controller: _boxImageController,
+                          decoration: InputDecoration(
+                            labelText: 'Box Image Path',
+                            hintText: 'e.g., uploads/boxes/BOX-001.jpg',
+                            border: OutlineInputBorder(),
+                            prefixIcon: Icon(Icons.image),
+                          ),
                         ),
 
                         SizedBox(height: 30),
@@ -724,16 +757,13 @@ class _BoxDialogState extends State<BoxDialog> {
                                 ),
                                 SizedBox(height: 12),
                                 if (_boxNumberPreview.isNotEmpty)
-                                  _buildSummaryRow(
-                                      'Box Number:', _boxNumberPreview),
+                                  _buildSummaryRow('Box Number:', _boxNumberPreview),
                                 if (_selectedClientId != null)
                                   _buildSummaryRow(
                                       'Client:',
                                       boxController.clients
                                           .firstWhere(
-                                              (c) =>
-                                                  c.clientId ==
-                                                  _selectedClientId,
+                                              (c) => c.clientId == _selectedClientId,
                                               orElse: () => ClientModel(
                                                     clientId: 0,
                                                     clientName: 'Unknown',
@@ -745,8 +775,8 @@ class _BoxDialogState extends State<BoxDialog> {
                                                   ))
                                           .clientName),
                                 if (_descriptionController.text.isNotEmpty)
-                                  _buildSummaryRow('Description:',
-                                      _descriptionController.text),
+                                  _buildSummaryRow(
+                                      'Description:', _descriptionController.text),
                                 if (_dateController.text.isNotEmpty)
                                   _buildSummaryRow(
                                       'Date Received:', _dateController.text),
@@ -758,20 +788,26 @@ class _BoxDialogState extends State<BoxDialog> {
                                       'Location:',
                                       _availableLocations
                                           .firstWhere(
-                                              (l) =>
-                                                  l.labelId ==
-                                                  _selectedRackingLabelId,
+                                              (l) => l.labelId == _selectedRackingLabelId,
                                               orElse: () => RackingLabelModel(
                                                     labelId: 0,
                                                     labelCode: 'N/A',
-                                                    locationDescription:
-                                                        'Not found',
+                                                    locationDescription: 'Not found',
                                                     isAvailable: false,
                                                     boxesCount: 0,
                                                     createdAt: DateTime.now(),
                                                     updatedAt: DateTime.now(),
                                                   ))
                                           .locationDescription),
+                                // New fields in summary
+                                if (_boxSizeController.text.isNotEmpty)
+                                  _buildSummaryRow('Box Size:', _boxSizeController.text),
+                                if (_dataYearsController.text.isNotEmpty)
+                                  _buildSummaryRow('Data Years:', _dataYearsController.text),
+                                if (_dateRangeController.text.isNotEmpty)
+                                  _buildSummaryRow('Date Range:', _dateRangeController.text),
+                                if (_boxImageController.text.isNotEmpty)
+                                  _buildSummaryRow('Box Image:', _boxImageController.text),
                               ],
                             ),
                           ),
@@ -811,14 +847,12 @@ class _BoxDialogState extends State<BoxDialog> {
                                       width: 20,
                                       child: CircularProgressIndicator(
                                         strokeWidth: 2,
-                                        valueColor: AlwaysStoppedAnimation(
-                                            Colors.white),
+                                        valueColor:
+                                            AlwaysStoppedAnimation(Colors.white),
                                       ),
                                     );
                                   }
-                                  return Text(_isEditMode
-                                      ? 'Update Box'
-                                      : 'Create Box');
+                                  return Text(_isEditMode ? 'Update Box' : 'Create Box');
                                 }),
                               ),
                             ),
@@ -887,7 +921,6 @@ class _BoxDialogState extends State<BoxDialog> {
       }
 
       if (!_isEditMode) {
-        // Create mode: Get client code for validation
         final clientCode = boxController.getClientCode(_selectedClientId!);
         if (clientCode == null || clientCode.isEmpty) {
           Get.snackbar(
@@ -899,7 +932,6 @@ class _BoxDialogState extends State<BoxDialog> {
           return;
         }
 
-        // Create the request
         final request = CreateBoxRequest(
           clientId: _selectedClientId!,
           boxIndex: _boxIndexController.text.trim(),
@@ -907,6 +939,10 @@ class _BoxDialogState extends State<BoxDialog> {
           boxDescription: _descriptionController.text,
           dateReceived: _dateController.text,
           retentionYears: int.parse(_retentionController.text),
+          boxSize: _boxSizeController.text.isNotEmpty ? _boxSizeController.text : null,
+          dataYears: _dataYearsController.text.isNotEmpty ? _dataYearsController.text : null,
+          dateRange: _dateRangeController.text.isNotEmpty ? _dateRangeController.text : null,
+          boxImage: _boxImageController.text.isNotEmpty ? _boxImageController.text : null,
         );
 
         final success = await boxController.createBox(request);
@@ -914,15 +950,17 @@ class _BoxDialogState extends State<BoxDialog> {
           Navigator.pop(context);
         }
       } else {
-        // Edit mode
         final request = UpdateBoxRequest(
           boxDescription: _descriptionController.text,
           rackingLabelId: _selectedRackingLabelId,
           retentionYears: int.parse(_retentionController.text),
+          boxSize: _boxSizeController.text.isNotEmpty ? _boxSizeController.text : null,
+          dataYears: _dataYearsController.text.isNotEmpty ? _dataYearsController.text : null,
+          dateRange: _dateRangeController.text.isNotEmpty ? _dateRangeController.text : null,
+          boxImage: _boxImageController.text.isNotEmpty ? _boxImageController.text : null,
         );
 
-        final success =
-            await boxController.updateBox(widget.box!.boxId, request);
+        final success = await boxController.updateBox(widget.box!.boxId, request);
         if (success) {
           Navigator.pop(context);
         }

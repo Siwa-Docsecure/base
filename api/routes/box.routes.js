@@ -41,7 +41,7 @@ const createAuditLog = async (userId, action, entityType, entityId, oldValue, ne
 };
 
 /**
- * Generate unique box number
+ * Generate unique box number (kept for backward compatibility, but not used in POST anymore)
  */
 const generateBoxNumber = async (clientCode, year) => {
   const [boxes] = await db.query(
@@ -90,6 +90,7 @@ router.get('/',
       let query = `
         SELECT b.box_id, b.box_number, b.box_description, b.date_received, 
                b.year_received, b.retention_years, b.destruction_year, b.status,
+               b.box_size, b.data_years, b.date_range, b.box_image,
                b.created_at, b.updated_at,
                c.client_id, c.client_name, c.client_code,
                r.label_id, r.label_code, r.location_description,
@@ -192,6 +193,10 @@ router.get('/',
         boxId: box.box_id,
         boxNumber: box.box_number,
         description: box.box_description,
+        boxSize: box.box_size,
+        dataYears: box.data_years,
+        dateRange: box.date_range,
+        boxImage: box.box_image,
         dateReceived: box.date_received,
         yearReceived: box.year_received,
         retentionYears: box.retention_years,
@@ -274,6 +279,7 @@ router.get('/pending-destruction',
       const [boxes] = await db.query(`
         SELECT b.box_id, b.box_number, b.box_description, b.destruction_year,
                b.year_received, b.retention_years,
+               b.box_size, b.data_years, b.date_range, b.box_image,
                c.client_id, c.client_name, c.client_code,
                r.label_code, r.location_description
         FROM boxes b
@@ -288,6 +294,10 @@ router.get('/pending-destruction',
         boxId: box.box_id,
         boxNumber: box.box_number,
         description: box.box_description,
+        boxSize: box.box_size,
+        dataYears: box.data_years,
+        dateRange: box.date_range,
+        boxImage: box.box_image,
         yearReceived: box.year_received,
         retentionYears: box.retention_years,
         destructionYear: box.destruction_year,
@@ -336,6 +346,7 @@ router.get('/client/:clientId',
       const [boxes] = await db.query(`
         SELECT b.box_id, b.box_number, b.box_description, b.date_received,
                b.status, b.destruction_year,
+               b.box_size, b.data_years, b.date_range, b.box_image,
                r.label_code, r.location_description
         FROM boxes b
         LEFT JOIN racking_labels r ON b.racking_label_id = r.label_id
@@ -347,6 +358,10 @@ router.get('/client/:clientId',
         boxId: box.box_id,
         boxNumber: box.box_number,
         description: box.box_description,
+        boxSize: box.box_size,
+        dataYears: box.data_years,
+        dateRange: box.date_range,
+        boxImage: box.box_image,
         dateReceived: box.date_received,
         status: box.status,
         destructionYear: box.destruction_year,
@@ -407,6 +422,10 @@ router.get('/:boxId',
         boxId: box.box_id,
         boxNumber: box.box_number,
         description: box.box_description,
+        boxSize: box.box_size,
+        dataYears: box.data_years,
+        dateRange: box.date_range,
+        boxImage: box.box_image,
         dateReceived: box.date_received,
         yearReceived: box.year_received,
         retentionYears: box.retention_years,
@@ -444,7 +463,7 @@ router.get('/:boxId',
 
 /**
  * @route   POST /api/boxes
- * @desc    Create new box with client-coded box number
+ * @desc    Create new box with client-coded box number and optional new fields
  * @access  Admin, Staff (with permission)
  */
 router.post('/',
@@ -458,7 +477,11 @@ router.post('/',
         boxIndex,  // User-provided index/suffix (e.g., "001", "001-A", "2024-001")
         boxDescription, 
         dateReceived, 
-        retentionYears = 7 
+        retentionYears = 7,
+        boxSize,       // new
+        dataYears,     // new
+        dateRange,     // new
+        boxImage       // new
       } = req.body;
       
       // Validate required fields
@@ -469,6 +492,12 @@ router.post('/',
       // Validate box index format
       if (typeof boxIndex !== 'string' || boxIndex.trim().length === 0) {
         throw new ValidationError('Box index must be a non-empty string');
+      }
+      
+      // Optional: validate boxSize against ENUM (if desired)
+      const allowedSizes = ['A0','A1','A2','A3','A4','A5','A6','Custom'];
+      if (boxSize && !allowedSizes.includes(boxSize)) {
+        throw new ValidationError(`boxSize must be one of: ${allowedSizes.join(', ')}`);
       }
       
       // Check client exists and get client code
@@ -509,13 +538,18 @@ router.post('/',
       const receivedDate = new Date(dateReceived);
       const yearReceived = receivedDate.getFullYear();
       
-      // Insert box (trigger will auto-calculate destruction_year)
+      // Insert box with new fields
       const [result] = await db.query(`
         INSERT INTO boxes (
           box_number, client_id, racking_label_id, box_description,
-          date_received, year_received, retention_years, status
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, 'stored')
-      `, [boxNumber, clientId, rackingLabelId || null, boxDescription, dateReceived, yearReceived, retentionYears]);
+          date_received, year_received, retention_years, status,
+          box_size, data_years, date_range, box_image
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, 'stored', ?, ?, ?, ?)
+      `, [
+        boxNumber, clientId, rackingLabelId || null, boxDescription,
+        dateReceived, yearReceived, retentionYears,
+        boxSize || null, dataYears || null, dateRange || null, boxImage || null
+      ]);
       
       const boxId = result.insertId;
       
@@ -526,7 +560,7 @@ router.post('/',
         'box',
         boxId,
         null,
-        { boxNumber, clientId, boxIndex: formattedBoxIndex, rackingLabelId, retentionYears },
+        { boxNumber, clientId, boxIndex: formattedBoxIndex, rackingLabelId, retentionYears, boxSize, dataYears, dateRange, boxImage },
         req.ip,
         req.get('user-agent')
       );
@@ -543,6 +577,10 @@ router.post('/',
           clientId,
           rackingLabelId: rackingLabelId || null,
           description: boxDescription,
+          boxSize,
+          dataYears,
+          dateRange,
+          boxImage,
           dateReceived,
           yearReceived,
           retentionYears,
@@ -559,7 +597,7 @@ router.post('/',
 
 /**
  * @route   PUT /api/boxes/:boxId
- * @desc    Update box details
+ * @desc    Update box details including new fields
  * @access  Admin, Staff (with permission)
  */
 router.put('/:boxId',
@@ -568,7 +606,15 @@ router.put('/:boxId',
   async (req, res, next) => {
     try {
       const { boxId } = req.params;
-      const { boxDescription, rackingLabelId, retentionYears } = req.body;
+      const { 
+        boxDescription, 
+        rackingLabelId, 
+        retentionYears,
+        boxSize,
+        dataYears,
+        dateRange,
+        boxImage 
+      } = req.body;
       
       // Check box exists
       const [boxes] = await db.query('SELECT * FROM boxes WHERE box_id = ?', [boxId]);
@@ -589,6 +635,12 @@ router.put('/:boxId',
         }
       }
       
+      // Validate boxSize if provided
+      const allowedSizes = ['A0','A1','A2','A3','A4','A5','A6','Custom'];
+      if (boxSize && !allowedSizes.includes(boxSize)) {
+        throw new ValidationError(`boxSize must be one of: ${allowedSizes.join(', ')}`);
+      }
+      
       // Build update query dynamically
       const updates = [];
       const params = [];
@@ -606,6 +658,26 @@ router.put('/:boxId',
       if (retentionYears !== undefined) {
         updates.push('retention_years = ?');
         params.push(retentionYears);
+      }
+      
+      if (boxSize !== undefined) {
+        updates.push('box_size = ?');
+        params.push(boxSize || null);
+      }
+      
+      if (dataYears !== undefined) {
+        updates.push('data_years = ?');
+        params.push(dataYears || null);
+      }
+      
+      if (dateRange !== undefined) {
+        updates.push('date_range = ?');
+        params.push(dateRange || null);
+      }
+      
+      if (boxImage !== undefined) {
+        updates.push('box_image = ?');
+        params.push(boxImage || null);
       }
       
       if (updates.length === 0) {
@@ -629,9 +701,13 @@ router.put('/:boxId',
         { 
           box_description: oldBox.box_description, 
           racking_label_id: oldBox.racking_label_id,
-          retention_years: oldBox.retention_years
+          retention_years: oldBox.retention_years,
+          box_size: oldBox.box_size,
+          data_years: oldBox.data_years,
+          date_range: oldBox.date_range,
+          box_image: oldBox.box_image
         },
-        { boxDescription, rackingLabelId, retentionYears },
+        { boxDescription, rackingLabelId, retentionYears, boxSize, dataYears, dateRange, boxImage },
         req.ip,
         req.get('user-agent')
       );
@@ -652,7 +728,7 @@ router.put('/:boxId',
 /**
  * @route   PATCH /api/boxes/:boxId/status
  * @desc    Change box status
- * @access  Admin, Staff (with permission)
+ * @access  Admin, Staff
  */
 router.patch('/:boxId/status',
   authorizeRoles('admin', 'staff'),
@@ -761,7 +837,7 @@ router.delete('/:boxId',
 
 /**
  * @route   POST /api/boxes/bulk/create
- * @desc    Bulk create boxes with client-coded box numbers
+ * @desc    Bulk create boxes with client-coded box numbers and optional new fields
  * @access  Admin, Staff (with permission)
  */
 router.post('/bulk/create',
@@ -851,7 +927,18 @@ router.post('/bulk/create',
         // Process each box
         for (const boxData of boxes) {
           try {
-            const { clientId, rackingLabelId, boxIndex, boxDescription, dateReceived, retentionYears = 7 } = boxData;
+            const { 
+              clientId, 
+              rackingLabelId, 
+              boxIndex, 
+              boxDescription, 
+              dateReceived, 
+              retentionYears = 7,
+              boxSize,
+              dataYears,
+              dateRange,
+              boxImage
+            } = boxData;
             
             // Skip if already marked as failed
             if (results.failed.some(f => f.clientId === clientId && f.boxIndex === boxIndex)) {
@@ -881,16 +968,27 @@ router.post('/bulk/create',
               }
             }
             
+            // Optional validation for boxSize
+            const allowedSizes = ['A0','A1','A2','A3','A4','A5','A6','Custom'];
+            if (boxSize && !allowedSizes.includes(boxSize)) {
+              throw new Error(`boxSize must be one of: ${allowedSizes.join(', ')}`);
+            }
+            
             const receivedDate = new Date(dateReceived);
             const yearReceived = receivedDate.getFullYear();
             
-            // Insert box
+            // Insert box with new fields
             const [result] = await db.query(`
               INSERT INTO boxes (
                 box_number, client_id, racking_label_id, box_description,
-                date_received, year_received, retention_years, status
-              ) VALUES (?, ?, ?, ?, ?, ?, ?, 'stored')
-            `, [boxNumber, clientId, rackingLabelId || null, boxDescription, dateReceived, yearReceived, retentionYears]);
+                date_received, year_received, retention_years, status,
+                box_size, data_years, date_range, box_image
+              ) VALUES (?, ?, ?, ?, ?, ?, ?, 'stored', ?, ?, ?, ?)
+            `, [
+              boxNumber, clientId, rackingLabelId || null, boxDescription,
+              dateReceived, yearReceived, retentionYears,
+              boxSize || null, dataYears || null, dateRange || null, boxImage || null
+            ]);
             
             results.success.push({ 
               boxNumber, 
@@ -987,120 +1085,96 @@ router.patch('/bulk/status',
 
 /**
  * @route   GET /api/boxes/report/single
- * @desc    Generate a box report, optionally filtered by client (single client)
+ * @desc    Generate a detailed box report for a single client (or all clients)
+ *          with filters and summary statistics
  * @access  Admin, Staff
  */
 router.get('/report/single',
   authorizeRoles('admin', 'staff'),
   async (req, res, next) => {
     try {
-      const { clientId } = req.query;
+      const {
+        clientId,
+        status,
+        rackingLabelId,
+        search,
+        dateFrom,
+        dateTo,
+        destructionYearFrom,
+        destructionYearTo,
+        retentionYears,
+        includeStats = 'true'   // default to true
+      } = req.query;
 
-      // Build query
-      let query = `
-        SELECT 
-          b.box_number,
-          b.box_description,
-          b.date_received,
-          b.year_received,
-          b.destruction_year,
-          b.status,
-          c.client_id,
-          c.client_name,
-          c.client_code,
-          r.label_code AS rack_label,
-          r.location_description AS rack_location
-        FROM boxes b
-        LEFT JOIN clients c ON b.client_id = c.client_id
-        LEFT JOIN racking_labels r ON b.racking_label_id = r.label_id
-        WHERE 1=1
-      `;
+      // Build the WHERE clause dynamically
+      let whereConditions = [];
       const params = [];
 
       if (clientId) {
-        query += ' AND b.client_id = ?';
+        whereConditions.push('b.client_id = ?');
         params.push(clientId);
       }
 
-      query += ' ORDER BY c.client_name, b.box_number';
-
-      const [rows] = await db.query(query, params);
-
-      // Format the report data (similar to the image provided)
-      const reportData = rows.map(row => ({
-        boxNumber: row.box_number,
-        boxSize: 'A3',   // default, can be adjusted or derived from rack label if needed
-        description: row.box_description,
-        datesRange: row.date_received 
-          ? new Date(row.date_received).toLocaleDateString('en-GB', { month: 'short', year: 'numeric' })
-          : null,
-        dataYears: row.year_received,
-        destructionYear: row.destruction_year,
-        status: row.status,
-        rackLabel: row.rack_label,
-        rackLocation: row.rack_location,
-        client: {
-          clientId: row.client_id,
-          clientName: row.client_name,
-          clientCode: row.client_code
-        }
-      }));
-
-      // Audit log
-      await createAuditLog(
-        req.user.userId,
-        'GENERATE_BOX_REPORT',
-        'report',
-        null,
-        null,
-        { clientId: clientId || 'all', count: reportData.length },
-        req.ip,
-        req.get('user-agent')
-      );
-
-      res.status(200).json({
-        status: 'success',
-        data: {
-          generatedAt: new Date().toISOString(),
-          filters: {
-            clientId: clientId || null
-          },
-          boxes: reportData
-        }
-      });
-
-    } catch (error) {
-      next(error);
-    }
-  }
-);
-
-/**
- * @route   GET /api/boxes/report/bulk
- * @desc    Generate a bulk box report for multiple clients, with grouping and summaries
- * @access  Admin, Staff
- */
-router.get('/report/bulk',
-  authorizeRoles('admin', 'staff'),
-  async (req, res, next) => {
-    try {
-      const { clientIds } = req.query;
-      
-      // Parse clientIds into an array of integers if provided
-      let clientIdArray = [];
-      if (clientIds) {
-        clientIdArray = clientIds.split(',').map(id => parseInt(id.trim())).filter(id => !isNaN(id));
-        if (clientIdArray.length === 0) {
-          throw new ValidationError('Invalid clientIds format. Provide comma-separated numbers.');
+      if (status) {
+        // status can be a single value or comma-separated list
+        const statuses = status.split(',').map(s => s.trim()).filter(s => s);
+        if (statuses.length === 1) {
+          whereConditions.push('b.status = ?');
+          params.push(statuses[0]);
+        } else if (statuses.length > 1) {
+          whereConditions.push(`b.status IN (${statuses.map(() => '?').join(',')})`);
+          params.push(...statuses);
         }
       }
 
-      // Build base query to fetch boxes with client and racking label info
-      let query = `
+      if (rackingLabelId) {
+        whereConditions.push('b.racking_label_id = ?');
+        params.push(rackingLabelId);
+      }
+
+      if (search) {
+        whereConditions.push('(b.box_description LIKE ? OR b.box_number LIKE ?)');
+        const pattern = `%${search}%`;
+        params.push(pattern, pattern);
+      }
+
+      if (dateFrom) {
+        whereConditions.push('b.date_received >= ?');
+        params.push(dateFrom);
+      }
+      if (dateTo) {
+        whereConditions.push('b.date_received <= ?');
+        params.push(dateTo);
+      }
+
+      if (destructionYearFrom) {
+        whereConditions.push('b.destruction_year >= ?');
+        params.push(parseInt(destructionYearFrom));
+      }
+      if (destructionYearTo) {
+        whereConditions.push('b.destruction_year <= ?');
+        params.push(parseInt(destructionYearTo));
+      }
+
+      if (retentionYears) {
+        // support exact match or range? For simplicity, exact match
+        whereConditions.push('b.retention_years = ?');
+        params.push(parseInt(retentionYears));
+      }
+
+      const whereClause = whereConditions.length
+        ? 'WHERE ' + whereConditions.join(' AND ')
+        : '';
+
+      // Query for detailed boxes
+      const boxesQuery = `
         SELECT 
-          b.box_id,
           b.box_number,
           b.box_description,
+          b.box_size,
+          b.data_years,
+          b.date_range,
+          b.box_image,
           b.date_received,
           b.year_received,
           b.retention_years,
@@ -1114,22 +1188,219 @@ router.get('/report/bulk',
         FROM boxes b
         LEFT JOIN clients c ON b.client_id = c.client_id
         LEFT JOIN racking_labels r ON b.racking_label_id = r.label_id
+        ${whereClause}
+        ORDER BY c.client_name, b.box_number
       `;
-      
-      const params = [];
-      
-      if (clientIdArray.length > 0) {
-        query += ' WHERE b.client_id IN (?)';
-        params.push(clientIdArray);
+
+      const [rows] = await db.query(boxesQuery, params);
+
+      // Format detailed boxes
+      const boxes = rows.map(row => ({
+        boxNumber: row.box_number,
+        boxSize: row.box_size || 'A3',
+        description: row.box_description,
+        dataYears: row.data_years,
+        dateRange: row.date_range,
+        boxImage: row.box_image,
+        dateReceived: row.date_received,
+        yearReceived: row.year_received,
+        retentionYears: row.retention_years,
+        destructionYear: row.destruction_year,
+        status: row.status,
+        rackLabel: row.rack_label,
+        rackLocation: row.rack_location,
+        client: {
+          clientId: row.client_id,
+          clientName: row.client_name,
+          clientCode: row.client_code
+        }
+      }));
+
+      // Compute summary statistics (if requested)
+      let summary = null;
+      if (includeStats === 'true') {
+        // Count total boxes and breakdown by status
+        const totalBoxes = rows.length;
+        const statusCounts = rows.reduce((acc, row) => {
+          acc[row.status] = (acc[row.status] || 0) + 1;
+          return acc;
+        }, {});
+
+        // Count pending destruction (destruction_year <= current year and status = 'stored')
+        const currentYear = new Date().getFullYear();
+        const pendingDestruction = rows.filter(
+          row => row.destruction_year <= currentYear && row.status === 'stored'
+        ).length;
+
+        // Distinct clients count
+        const uniqueClients = new Set(rows.map(r => r.client_id)).size;
+
+        summary = {
+          totalBoxes,
+          statusCounts: {
+            stored: statusCounts.stored || 0,
+            retrieved: statusCounts.retrieved || 0,
+            destroyed: statusCounts.destroyed || 0
+          },
+          pendingDestruction,
+          uniqueClients
+        };
       }
-      
-      query += ' ORDER BY c.client_name, b.box_number';
-      
-      const [rows] = await db.query(query, params);
+
+      // Audit log
+      await createAuditLog(
+        req.user.userId,
+        'GENERATE_BOX_REPORT',
+        'report',
+        null,
+        null,
+        { filters: req.query, count: boxes.length },
+        req.ip,
+        req.get('user-agent')
+      );
+
+      res.status(200).json({
+        status: 'success',
+        data: {
+          generatedAt: new Date().toISOString(),
+          filters: req.query,
+          summary,
+          boxes
+        }
+      });
+
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+/**
+ * @route   GET /api/boxes/report/bulk
+ * @desc    Generate a bulk box report for multiple clients, with grouping,
+ *          filters, and overall summary statistics
+ * @access  Admin, Staff
+ */
+router.get('/report/bulk',
+  authorizeRoles('admin', 'staff'),
+  async (req, res, next) => {
+    try {
+      const {
+        clientIds,
+        status,
+        rackingLabelId,
+        search,
+        dateFrom,
+        dateTo,
+        destructionYearFrom,
+        destructionYearTo,
+        retentionYears,
+        includeStats = 'true'
+      } = req.query;
+
+      // Parse clientIds if provided
+      let clientIdArray = [];
+      if (clientIds) {
+        clientIdArray = clientIds.split(',').map(id => parseInt(id.trim())).filter(id => !isNaN(id));
+        if (clientIdArray.length === 0) {
+          throw new ValidationError('Invalid clientIds format. Provide comma-separated numbers.');
+        }
+      }
+
+      // Build WHERE clause dynamically
+      let whereConditions = [];
+      const params = [];
+
+      if (clientIdArray.length > 0) {
+        whereConditions.push(`b.client_id IN (${clientIdArray.map(() => '?').join(',')})`);
+        params.push(...clientIdArray);
+      }
+
+      if (status) {
+        const statuses = status.split(',').map(s => s.trim()).filter(s => s);
+        if (statuses.length === 1) {
+          whereConditions.push('b.status = ?');
+          params.push(statuses[0]);
+        } else if (statuses.length > 1) {
+          whereConditions.push(`b.status IN (${statuses.map(() => '?').join(',')})`);
+          params.push(...statuses);
+        }
+      }
+
+      if (rackingLabelId) {
+        whereConditions.push('b.racking_label_id = ?');
+        params.push(rackingLabelId);
+      }
+
+      if (search) {
+        whereConditions.push('(b.box_description LIKE ? OR b.box_number LIKE ?)');
+        const pattern = `%${search}%`;
+        params.push(pattern, pattern);
+      }
+
+      if (dateFrom) {
+        whereConditions.push('b.date_received >= ?');
+        params.push(dateFrom);
+      }
+      if (dateTo) {
+        whereConditions.push('b.date_received <= ?');
+        params.push(dateTo);
+      }
+
+      if (destructionYearFrom) {
+        whereConditions.push('b.destruction_year >= ?');
+        params.push(parseInt(destructionYearFrom));
+      }
+      if (destructionYearTo) {
+        whereConditions.push('b.destruction_year <= ?');
+        params.push(parseInt(destructionYearTo));
+      }
+
+      if (retentionYears) {
+        whereConditions.push('b.retention_years = ?');
+        params.push(parseInt(retentionYears));
+      }
+
+      const whereClause = whereConditions.length
+        ? 'WHERE ' + whereConditions.join(' AND ')
+        : '';
+
+      // Query for all boxes with client and racking info
+      const boxesQuery = `
+        SELECT 
+          b.box_id,
+          b.box_number,
+          b.box_description,
+          b.box_size,
+          b.data_years,
+          b.date_range,
+          b.box_image,
+          b.date_received,
+          b.year_received,
+          b.retention_years,
+          b.destruction_year,
+          b.status,
+          c.client_id,
+          c.client_name,
+          c.client_code,
+          r.label_code AS rack_label,
+          r.location_description AS rack_location
+        FROM boxes b
+        LEFT JOIN clients c ON b.client_id = c.client_id
+        LEFT JOIN racking_labels r ON b.racking_label_id = r.label_id
+        ${whereClause}
+        ORDER BY c.client_name, b.box_number
+      `;
+
+      const [rows] = await db.query(boxesQuery, params);
 
       // Group boxes by client
       const clientsMap = new Map();
-      
+      let overallTotal = 0;
+      let overallStatusCounts = { stored: 0, retrieved: 0, destroyed: 0 };
+      let overallPending = 0;
+      const currentYear = new Date().getFullYear();
+
       rows.forEach(row => {
         const clientId = row.client_id;
         if (!clientsMap.has(clientId)) {
@@ -1147,44 +1418,59 @@ router.get('/report/bulk',
             }
           });
         }
-        
+
         const clientData = clientsMap.get(clientId);
-        
-        // Format box data similar to the image report
         const box = {
           boxNumber: row.box_number,
-          boxSize: 'A3', // default
+          boxSize: row.box_size || 'A3',
           description: row.box_description || '',
-          datesRange: row.date_received 
-            ? new Date(row.date_received).toLocaleDateString('en-GB', { month: 'short', year: 'numeric' })
-            : '',
-          dataYears: row.year_received ? row.year_received.toString() : '',
+          dataYears: row.data_years,
+          dateRange: row.date_range,
+          boxImage: row.box_image,
+          dateReceived: row.date_received,
+          yearReceived: row.year_received,
+          retentionYears: row.retention_years,
           destructionYear: row.destruction_year,
           status: row.status,
           rackLabel: row.rack_label,
           rackLocation: row.rack_location
         };
-        
+
         clientData.boxes.push(box);
-        
-        // Update summary counts
         clientData.summary.totalBoxes++;
+
+        // Update client summary counts
         if (row.status === 'stored') clientData.summary.stored++;
         else if (row.status === 'retrieved') clientData.summary.retrieved++;
         else if (row.status === 'destroyed') clientData.summary.destroyed++;
-        
-        // Check if pending destruction (destruction year <= current year and status = stored)
-        if (row.destruction_year && row.destruction_year <= new Date().getFullYear() && row.status === 'stored') {
+
+        if (row.destruction_year && row.destruction_year <= currentYear && row.status === 'stored') {
           clientData.summary.pendingDestruction++;
+        }
+
+        // Update overall counts
+        overallTotal++;
+        if (row.status === 'stored') overallStatusCounts.stored++;
+        else if (row.status === 'retrieved') overallStatusCounts.retrieved++;
+        else if (row.status === 'destroyed') overallStatusCounts.destroyed++;
+
+        if (row.destruction_year && row.destruction_year <= currentYear && row.status === 'stored') {
+          overallPending++;
         }
       });
 
-      // Convert map to array for output
       const clients = Array.from(clientsMap.values());
 
-      // Overall totals
-      const totalClients = clients.length;
-      const totalBoxes = rows.length;
+      // Overall summary
+      let overallSummary = null;
+      if (includeStats === 'true') {
+        overallSummary = {
+          totalBoxes: overallTotal,
+          totalClients: clients.length,
+          statusCounts: overallStatusCounts,
+          pendingDestruction: overallPending
+        };
+      }
 
       // Audit log
       await createAuditLog(
@@ -1193,7 +1479,7 @@ router.get('/report/bulk',
         'report',
         null,
         null,
-        { clientIds: clientIdArray.length ? clientIdArray : 'all', count: totalBoxes },
+        { filters: req.query, count: overallTotal },
         req.ip,
         req.get('user-agent')
       );
@@ -1202,13 +1488,8 @@ router.get('/report/bulk',
         status: 'success',
         data: {
           generatedAt: new Date().toISOString(),
-          filters: {
-            clientIds: clientIdArray.length ? clientIdArray : 'all'
-          },
-          summary: {
-            totalClients,
-            totalBoxes
-          },
+          filters: req.query,
+          summary: overallSummary,
           clients
         }
       });
