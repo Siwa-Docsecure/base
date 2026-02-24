@@ -861,13 +861,17 @@ class _BoxManagementScreenState extends State<BoxManagementScreen>
         child: Container(
           width: MediaQuery.of(Get.context!).size.width * 0.8,
           height: MediaQuery.of(Get.context!).size.height * 0.8,
+          decoration: BoxDecoration(
+                  color: Colors.blue[50],
+                  borderRadius: BorderRadius.circular( 4),
+                ),
           child: Column(
             children: [
               Container(
                 padding: EdgeInsets.all(16),
                 decoration: BoxDecoration(
                   color: Colors.blue[50],
-                  borderRadius: BorderRadius.vertical(top: Radius.circular(4)),
+                  borderRadius: BorderRadius.circular( 4),
                 ),
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -1010,6 +1014,16 @@ class _BoxManagementScreenState extends State<BoxManagementScreen>
     );
   }
 
+  pw.Widget _buildCompactStat(String label, String value) {
+    return pw.Row(
+      children: [
+        pw.Text('$label: ',
+            style: pw.TextStyle(fontSize: 9, fontWeight: pw.FontWeight.bold)),
+        pw.Text(value, style: pw.TextStyle(fontSize: 9)),
+      ],
+    );
+  }
+
   // ==================== PDF BUILD (SINGLE) ====================
   Future<pw.Document> _buildPdfDocument(
     BoxReportResponse report, {
@@ -1017,23 +1031,31 @@ class _BoxManagementScreenState extends State<BoxManagementScreen>
     bool includeStats = true,
   }) async {
     final pdf = pw.Document();
-    final boxes = boxController.pendingDestructionBoxes;
-    final box =
-        boxes[0]; // Replace 0 with the desired index or pass it dynamically
 
+    // Determine if this is a single‑client report and the client name for the signature
+    final bool isSingleClient = clientId != null;
+    final String? clientNameForSignature =
+        isSingleClient && report.boxes.isNotEmpty
+            ? report.boxes.first.client.clientName
+            : null;
+
+    // Load fonts
     final fontData = await rootBundle.load('assets/fonts/OpenSans-Regular.ttf');
     final boldFontData =
         await rootBundle.load('assets/fonts/OpenSans-Bold.ttf');
     final ttf = pw.Font.ttf(fontData);
     final ttfBold = pw.Font.ttf(boldFontData);
 
+    // Load logo (optional)
     final logoImage = await _loadLogo();
 
     pdf.addPage(
       pw.MultiPage(
         pageFormat: PdfPageFormat.a4,
-        margin: pw.EdgeInsets.all(32),
+        margin: const pw.EdgeInsets.all(32),
         theme: pw.ThemeData.withFont(base: ttf, bold: ttfBold),
+
+        // ===== HEADER (only on first page) =====
         header: (context) {
           if (context.pageNumber == 1) {
             return pw.Column(children: [
@@ -1081,11 +1103,13 @@ class _BoxManagementScreenState extends State<BoxManagementScreen>
                 ],
               ),
               pw.SizedBox(height: 8),
+              // Client info (always shown)
               pw.Container(
-                padding: pw.EdgeInsets.symmetric(vertical: 8, horizontal: 12),
+                padding:
+                    const pw.EdgeInsets.symmetric(vertical: 8, horizontal: 12),
                 decoration: pw.BoxDecoration(
-                    color: PdfColors.grey100,
-                    borderRadius: pw.BorderRadius.circular(4)),
+                    border: pw.Border.all(color: PdfColors.grey300),
+                    color: PdfColors.white),
                 child: pw.Row(
                   children: [
                     pw.Text('Client: ',
@@ -1100,162 +1124,211 @@ class _BoxManagementScreenState extends State<BoxManagementScreen>
                   ],
                 ),
               ),
-              // Display applied filters
-              pw.SizedBox(height: 8),
-              pw.Container(
-                padding: pw.EdgeInsets.symmetric(vertical: 8, horizontal: 12),
-                decoration: pw.BoxDecoration(
-                    color: PdfColors.grey50,
-                    borderRadius: pw.BorderRadius.circular(4),
-                    border: pw.Border.all(color: PdfColors.grey300)),
-                child: pw.Column(
-                  crossAxisAlignment: pw.CrossAxisAlignment.start,
-                  children: [
-                    pw.Text('Filters applied:',
-                        style: pw.TextStyle(
-                            fontSize: 10, fontWeight: pw.FontWeight.bold)),
-                    pw.SizedBox(height: 4),
-                    ...report.filters.entries.map((e) => pw.Text(
-                        '${e.key}: ${e.value}',
-                        style: pw.TextStyle(fontSize: 8))),
-                  ],
-                ),
-              ),
               pw.SizedBox(height: 16),
             ]);
           }
           return pw.Container();
         },
+
+        // ===== FOOTER (page numbers) =====
         footer: (context) => pw.Container(
           alignment: pw.Alignment.centerRight,
-          margin: pw.EdgeInsets.only(top: 20),
+          margin: const pw.EdgeInsets.only(top: 20),
           child: pw.Text('Page ${context.pageNumber} of ${context.pagesCount}',
               style: pw.TextStyle(fontSize: 8, color: PdfColors.grey)),
         ),
-        build: (context) => [
-          // Summary stats
-          if (includeStats && report.summary != null) ...[
+
+        // ===== MAIN CONTENT =====
+        build: (context) {
+          final List<pw.Widget> content = [];
+
+          // ---- 1. Filters Table (if any) ----
+          content.add(pw.Text('Filters Applied',
+              style:
+                  pw.TextStyle(fontSize: 11, fontWeight: pw.FontWeight.bold)));
+          content.add(pw.SizedBox(height: 6));
+
+          if (report.filters.isEmpty) {
+            // No filters – show "N/A"
+            content.add(
+              pw.Container(
+                padding:
+                    const pw.EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                decoration: pw.BoxDecoration(
+                  border: pw.Border.all(color: PdfColors.grey300),
+                ),
+                child: pw.Row(
+                  children: [
+                    pw.Text('No filters applied',
+                        style: pw.TextStyle(
+                            fontSize: 9, color: PdfColors.grey700)),
+                  ],
+                ),
+              ),
+            );
+          } else {
+            // Build a two‑column table of filters
+            final filterData =
+                report.filters.entries.map((e) => [e.key, e.value]).toList();
+            content.add(
+              pw.TableHelper.fromTextArray(
+                headers: ['Filter', 'Value'],
+                data: filterData,
+                border:
+                    pw.TableBorder.all(color: PdfColors.grey300, width: 0.5),
+                headerStyle:
+                    pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 9),
+                cellStyle: pw.TextStyle(fontSize: 9),
+                columnWidths: {
+                  0: const pw.FlexColumnWidth(1),
+                  1: const pw.FlexColumnWidth(2),
+                },
+                cellAlignments: {
+                  0: pw.Alignment.centerLeft,
+                  1: pw.Alignment.centerLeft,
+                },
+              ),
+            );
+          }
+          content.add(pw.SizedBox(height: 16));
+
+          // ---- 2. Summary Table (if requested) ----
+          if (includeStats && report.summary != null) {
+            content.add(pw.Text('Summary',
+                style: pw.TextStyle(
+                    fontSize: 11, fontWeight: pw.FontWeight.bold)));
+            content.add(pw.SizedBox(height: 6));
+
+            final summaryData = [
+              ['Total Boxes', report.summary!.totalBoxes.toString()],
+              ['Unique Clients', report.summary!.uniqueClients.toString()],
+              [
+                'Stored',
+                (report.summary!.statusCounts['stored'] ?? 0).toString()
+              ],
+              [
+                'Retrieved',
+                (report.summary!.statusCounts['retrieved'] ?? 0).toString()
+              ],
+              [
+                'Destroyed',
+                (report.summary!.statusCounts['destroyed'] ?? 0).toString()
+              ],
+              [
+                'Pending Destruction',
+                report.summary!.pendingDestruction.toString()
+              ],
+            ];
+
+            content.add(
+              pw.TableHelper.fromTextArray(
+                headers: ['Metric', 'Value'],
+                data: summaryData,
+                border:
+                    pw.TableBorder.all(color: PdfColors.grey300, width: 0.5),
+                headerStyle:
+                    pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 9),
+                cellStyle: pw.TextStyle(fontSize: 9),
+                columnWidths: {
+                  0: const pw.FlexColumnWidth(2),
+                  1: const pw.FlexColumnWidth(1),
+                },
+                cellAlignments: {
+                  0: pw.Alignment.centerLeft,
+                  1: pw.Alignment.centerLeft,
+                },
+              ),
+            );
+            content.add(pw.SizedBox(height: 16));
+          }
+
+          // ---- 3. Boxes Table ----
+          content.add(
+            pw.TableHelper.fromTextArray(
+              headers: [
+                'Box #',
+                'Size',
+                'Description',
+                'Date Received',
+                'Data Years',
+                'Destruction Year',
+                'Status'
+              ],
+              data: report.boxes
+                  .map((box) => [
+                        box.boxNumber,
+                        box.boxSize ?? '',
+                        box.description ?? '',
+                        box.dateReceived != null
+                            ? DateFormat('yyyy-MM-dd').format(box.dateReceived!)
+                            : '',
+                        box.dataYears ?? '',
+                        box.destructionYear?.toString() ?? '',
+                        box.status.capitalizeFirst ?? '',
+                      ])
+                  .toList(),
+              border: pw.TableBorder.all(color: PdfColors.grey300, width: 0.5),
+              headerStyle: pw.TextStyle(
+                  fontWeight: pw.FontWeight.bold,
+                  fontSize: 9,
+                  color: PdfColors.white),
+              headerDecoration: pw.BoxDecoration(color: PdfColors.blue700),
+              cellStyle: pw.TextStyle(fontSize: 8),
+              cellHeight: 28,
+              columnWidths: {
+                0: const pw.FlexColumnWidth(1.5),
+                1: const pw.FlexColumnWidth(0.8),
+                2: const pw.FlexColumnWidth(2),
+                3: const pw.FlexColumnWidth(1.2),
+                4: const pw.FlexColumnWidth(1),
+                5: const pw.FlexColumnWidth(1),
+                6: const pw.FlexColumnWidth(1),
+              },
+              cellAlignments: {
+                0: pw.Alignment.centerLeft,
+                1: pw.Alignment.center,
+                2: pw.Alignment.centerLeft,
+                3: pw.Alignment.center,
+                4: pw.Alignment.center,
+                5: pw.Alignment.center,
+                6: pw.Alignment.center,
+              },
+            ),
+          );
+
+          content.add(pw.SizedBox(height: 20));
+
+          // ---- 4. Footer summary line (total boxes) ----
+          content.add(
             pw.Container(
-              padding: pw.EdgeInsets.all(12),
-              decoration: pw.BoxDecoration(
-                  color: PdfColors.blue50,
-                  borderRadius: pw.BorderRadius.circular(4)),
+              alignment: pw.Alignment.centerRight,
               child: pw.Column(
-                crossAxisAlignment: pw.CrossAxisAlignment.start,
+                crossAxisAlignment: pw.CrossAxisAlignment.end,
                 children: [
-                  pw.Text('Summary',
+                  pw.Text('Total Boxes: ${report.boxes.length}',
                       style: pw.TextStyle(
-                          fontSize: 12, fontWeight: pw.FontWeight.bold)),
-                  pw.SizedBox(height: 8),
-                  pw.Row(
-                    mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-                    children: [
-                      pw.Text('Total Boxes: ${report.summary!.totalBoxes}',
-                          style: pw.TextStyle(fontSize: 10)),
-                      pw.Text(
-                          'Stored: ${report.summary!.statusCounts['stored'] ?? 0}',
-                          style: pw.TextStyle(fontSize: 10)),
-                      pw.Text(
-                          'Retrieved: ${report.summary!.statusCounts['retrieved'] ?? 0}',
-                          style: pw.TextStyle(fontSize: 10)),
-                      pw.Text(
-                          'Destroyed: ${report.summary!.statusCounts['destroyed'] ?? 0}',
-                          style: pw.TextStyle(fontSize: 10)),
-                    ],
-                  ),
+                          fontSize: 11, fontWeight: pw.FontWeight.bold)),
                   pw.SizedBox(height: 4),
-                  pw.Row(
-                    children: [
-                      pw.Text(
-                          'Pending Destruction: ${report.summary!.pendingDestruction}',
-                          style: pw.TextStyle(fontSize: 10)),
-                      pw.SizedBox(width: 20),
-                      pw.Text(
-                          'Unique Clients: ${report.summary!.uniqueClients}',
-                          style: pw.TextStyle(fontSize: 10)),
-                    ],
-                  ),
+                  pw.Text('Report generated by PSMS ®',
+                      style:
+                          pw.TextStyle(fontSize: 8, color: PdfColors.grey600)),
                 ],
               ),
             ),
-            pw.SizedBox(height: 16),
-          ],
-          // Boxes table
-          pw.TableHelper.fromTextArray(
-            headers: [
-              'Box #',
-              'Size',
-              'Description',
-              'Date Received',
-              'Data Years',
-              'Destruction Year',
-              'Status'
-            ],
-            data: report.boxes
-                .map((box) => [
-                      box.boxNumber,
-                      box.boxSize ?? '',
-                      box.description ?? '',
-                      box.dateReceived != null
-                          ? DateFormat('yyyy-MM-dd').format(box.dateReceived!)
-                          : '',
-                      box.dataYears ?? '',
-                      box.destructionYear?.toString() ?? '',
-                      box.status.capitalizeFirst ?? '',
-                    ])
-                .toList(),
-            border: pw.TableBorder.all(color: PdfColors.grey300, width: 0.5),
-            headerStyle: pw.TextStyle(
-                fontWeight: pw.FontWeight.bold,
-                fontSize: 9,
-                color: PdfColors.white),
-            headerDecoration: pw.BoxDecoration(color: PdfColors.blue700),
-            cellStyle: pw.TextStyle(fontSize: 8),
-            cellHeight: 28,
-            columnWidths: {
-              0: pw.FlexColumnWidth(1.5),
-              1: pw.FlexColumnWidth(0.8),
-              2: pw.FlexColumnWidth(2),
-              3: pw.FlexColumnWidth(1.2),
-              4: pw.FlexColumnWidth(1),
-              5: pw.FlexColumnWidth(1),
-              6: pw.FlexColumnWidth(1),
-            },
-            cellAlignments: {
-              0: pw.Alignment.centerLeft,
-              1: pw.Alignment.center,
-              2: pw.Alignment.centerLeft,
-              3: pw.Alignment.center,
-              4: pw.Alignment.center,
-              5: pw.Alignment.center,
-              6: pw.Alignment.center,
-            },
-          ),
-          pw.SizedBox(height: 20),
-          pw.Container(
-            alignment: pw.Alignment.centerRight,
-            child: pw.Column(
-              crossAxisAlignment: pw.CrossAxisAlignment.end,
-              children: [
-                pw.Text('Total Boxes: ${report.boxes.length}',
-                    style: pw.TextStyle(
-                        fontSize: 11, fontWeight: pw.FontWeight.bold)),
-                pw.SizedBox(height: 4),
-                pw.Text('Report generated by PSMS ®',
-                    style: pw.TextStyle(fontSize: 8, color: PdfColors.grey600)),
-              ],
-            ),
-          ),
-          pw.Spacer(),
+          );
 
-          // Signature row
-          pw.Row(
+          content.add(pw.Spacer());
+
+          // ---- 5. Signature row (conditional) ----
+          content.add(
+            pw.Row(
               mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
               children: [
+                // Representative signature (always)
                 pw.Column(
                   crossAxisAlignment: pw.CrossAxisAlignment.start,
                   children: [
-                    pw.Text('Docsecure Represantative',
+                    pw.Text('Docsecure Representative',
                         style: pw.TextStyle(
                             fontSize: 8, fontWeight: pw.FontWeight.normal)),
                     pw.SizedBox(height: 10),
@@ -1264,22 +1337,26 @@ class _BoxManagementScreenState extends State<BoxManagementScreen>
                             fontSize: 8, color: PdfColors.grey600)),
                   ],
                 ),
+                // Client signature – only for single‑client reports
+                if (clientNameForSignature != null)
+                  pw.Column(
+                    crossAxisAlignment: pw.CrossAxisAlignment.start,
+                    children: [
+                      pw.Text('For Client: $clientNameForSignature',
+                          style: pw.TextStyle(
+                              fontSize: 8, fontWeight: pw.FontWeight.normal)),
+                      pw.SizedBox(height: 10),
+                      pw.Text('______________________________',
+                          style: pw.TextStyle(
+                              fontSize: 8, color: PdfColors.grey600)),
+                    ],
+                  ),
+              ],
+            ),
+          );
 
-                // for client
-                pw.Column(
-                  crossAxisAlignment: pw.CrossAxisAlignment.start,
-                  children: [
-                    pw.Text('For Client: ${box.client.clientName}',
-                        style: pw.TextStyle(
-                            fontSize: 8, fontWeight: pw.FontWeight.normal)),
-                    pw.SizedBox(height: 10),
-                    pw.Text('______________________________',
-                        style: pw.TextStyle(
-                            fontSize: 8, color: PdfColors.grey600)),
-                  ],
-                ),
-              ])
-        ],
+          return content;
+        },
       ),
     );
 
@@ -1448,19 +1525,39 @@ class _BoxManagementScreenState extends State<BoxManagementScreen>
             pages.add(pw.Container(
               padding: pw.EdgeInsets.all(8),
               decoration: pw.BoxDecoration(
-                  color: PdfColors.grey100,
-                  borderRadius: pw.BorderRadius.circular(4)),
+                color: PdfColors.grey100,
+                borderRadius: pw.BorderRadius.circular(4),
+                border: pw.Border.all(color: PdfColors.grey300),
+              ),
               child: pw.Column(
                 crossAxisAlignment: pw.CrossAxisAlignment.start,
                 children: [
                   pw.Text(
-                      '${client.clientName} (${client.clientCode}) - Boxes: ${client.summary.totalBoxes}',
-                      style: pw.TextStyle(
-                          fontSize: 11, fontWeight: pw.FontWeight.bold)),
+                    '${client.clientName} (${client.clientCode})',
+                    style: pw.TextStyle(
+                        fontSize: 11,
+                        fontWeight: pw.FontWeight.bold,
+                        color: PdfColors.blue800),
+                  ),
                   pw.SizedBox(height: 4),
-                  pw.Text(
-                      'Stored: ${client.summary.stored} | Retrieved: ${client.summary.retrieved} | Destroyed: ${client.summary.destroyed} | Pending: ${client.summary.pendingDestruction}',
-                      style: pw.TextStyle(fontSize: 9)),
+                  pw.Row(
+                    children: [
+                      _buildCompactStat(
+                          'Total', client.summary.totalBoxes.toString()),
+                      pw.SizedBox(width: 12),
+                      _buildCompactStat(
+                          'Stored', client.summary.stored.toString()),
+                      pw.SizedBox(width: 12),
+                      _buildCompactStat(
+                          'Retrieved', client.summary.retrieved.toString()),
+                      pw.SizedBox(width: 12),
+                      _buildCompactStat(
+                          'Destroyed', client.summary.destroyed.toString()),
+                      pw.SizedBox(width: 12),
+                      _buildCompactStat('Pending',
+                          client.summary.pendingDestruction.toString()),
+                    ],
+                  ),
                 ],
               ),
             ));
