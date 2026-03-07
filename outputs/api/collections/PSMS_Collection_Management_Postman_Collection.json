@@ -1,0 +1,847 @@
+{
+  "info": {
+    "name": "PSMS - Collection Management",
+    "description": "Complete collection management API endpoints for PSMS\n\n**Features:**\n- Collection CRUD operations\n- Digital signatures support\n- PDF receipt tracking\n- Filtering & pagination\n- Reports and analytics\n\n**Setup:**\n1. Run '0. Setup - Login' to get token\n2. Token auto-saves to collection variable\n3. All requests use {{access_token}}\n\n**Default Credentials:**\n- Admin: admin / admin123\n- Staff: staff1 / admin123",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://localhost:3000",
+      "type": "string"
+    },
+    {
+      "key": "access_token",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "test_collection_id",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "test_client_id",
+      "value": "1",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "0. Setup",
+      "item": [
+        {
+          "name": "Login as Admin",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "    const response = pm.response.json();",
+                  "    pm.collectionVariables.set('access_token', response.data.accessToken);",
+                  "    pm.environment.set('access_token', response.data.accessToken);",
+                  "    console.log('✅ Token saved:', response.data.accessToken.substring(0, 20) + '...');",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"admin\",\n  \"password\": \"admin123\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/auth/login",
+              "host": ["{{base_url}}"],
+              "path": ["api", "auth", "login"]
+            }
+          }
+        },
+        {
+          "name": "Login as Staff",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "    const response = pm.response.json();",
+                  "    pm.collectionVariables.set('access_token', response.data.accessToken);",
+                  "    pm.environment.set('access_token', response.data.accessToken);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"staff1\",\n  \"password\": \"admin123\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/auth/login",
+              "host": ["{{base_url}}"],
+              "path": ["api", "auth", "login"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "1. Collection CRUD",
+      "item": [
+        {
+          "name": "Get All Collections",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/collections?page=1&limit=20",
+              "host": ["{{base_url}}"],
+              "path": ["api", "collections"],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "20"
+                },
+                {
+                  "key": "clientId",
+                  "value": "1",
+                  "disabled": true
+                },
+                {
+                  "key": "startDate",
+                  "value": "2024-01-01",
+                  "disabled": true
+                },
+                {
+                  "key": "endDate",
+                  "value": "2024-12-31",
+                  "disabled": true
+                },
+                {
+                  "key": "search",
+                  "value": "financial",
+                  "disabled": true
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Collection by ID",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/collections/1",
+              "host": ["{{base_url}}"],
+              "path": ["api", "collections", "1"]
+            }
+          }
+        },
+        {
+          "name": "Create Collection (Basic)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "    const response = pm.response.json();",
+                  "    pm.collectionVariables.set('test_collection_id', response.data.collectionId);",
+                  "    console.log('✅ Collection created:', response.data.collectionId);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"clientId\": 1,\n  \"totalBoxes\": 10,\n  \"boxDescription\": \"Monthly collection - November 2024\",\n  \"dispatcherName\": \"John Smith\",\n  \"collectorName\": \"Jane Doe\",\n  \"collectionDate\": \"2024-11-15\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/collections",
+              "host": ["{{base_url}}"],
+              "path": ["api", "collections"]
+            }
+          }
+        },
+        {
+          "name": "Create Collection (with Signatures)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"clientId\": 1,\n  \"totalBoxes\": 15,\n  \"boxDescription\": \"Q4 Financial Records Collection\",\n  \"dispatcherName\": \"John Smith\",\n  \"collectorName\": \"Jane Doe\",\n  \"dispatcherSignature\": \"data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==\",\n  \"collectorSignature\": \"data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==\",\n  \"collectionDate\": \"2024-11-15\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/collections",
+              "host": ["{{base_url}}"],
+              "path": ["api", "collections"]
+            }
+          }
+        },
+        {
+          "name": "Update Collection",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"totalBoxes\": 18,\n  \"boxDescription\": \"Updated: Q4 Financial Records Collection\",\n  \"dispatcherName\": \"John Smith Jr.\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/collections/{{test_collection_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["api", "collections", "{{test_collection_id}}"]
+            }
+          }
+        },
+        {
+          "name": "Delete Collection",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/collections/{{test_collection_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["api", "collections", "{{test_collection_id}}"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "2. Query & Filter",
+      "item": [
+        {
+          "name": "Get Collection Statistics",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/collections/stats",
+              "host": ["{{base_url}}"],
+              "path": ["api", "collections", "stats"]
+            }
+          }
+        },
+        {
+          "name": "Get Recent Collections",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/collections/recent?limit=10",
+              "host": ["{{base_url}}"],
+              "path": ["api", "collections", "recent"],
+              "query": [
+                {
+                  "key": "limit",
+                  "value": "10"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Collections by Client",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/collections/client/{{test_client_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["api", "collections", "client", "{{test_client_id}}"]
+            }
+          }
+        },
+        {
+          "name": "Filter by Date Range",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/collections?startDate=2024-01-01&endDate=2024-12-31&page=1&limit=20",
+              "host": ["{{base_url}}"],
+              "path": ["api", "collections"],
+              "query": [
+                {
+                  "key": "startDate",
+                  "value": "2024-01-01"
+                },
+                {
+                  "key": "endDate",
+                  "value": "2024-12-31"
+                },
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "20"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Search Collections",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/collections?search=financial&page=1&limit=20",
+              "host": ["{{base_url}}"],
+              "path": ["api", "collections"],
+              "query": [
+                {
+                  "key": "search",
+                  "value": "financial"
+                },
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "20"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Filter by Client and Date",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/collections?clientId=1&startDate=2024-11-01&endDate=2024-11-30&sortBy=collection_date&sortOrder=DESC",
+              "host": ["{{base_url}}"],
+              "path": ["api", "collections"],
+              "query": [
+                {
+                  "key": "clientId",
+                  "value": "1"
+                },
+                {
+                  "key": "startDate",
+                  "value": "2024-11-01"
+                },
+                {
+                  "key": "endDate",
+                  "value": "2024-11-30"
+                },
+                {
+                  "key": "sortBy",
+                  "value": "collection_date"
+                },
+                {
+                  "key": "sortOrder",
+                  "value": "DESC"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "3. Signatures & PDF",
+      "item": [
+        {
+          "name": "Update Signatures",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"dispatcherSignature\": \"data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==\",\n  \"collectorSignature\": \"data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/collections/1/signatures",
+              "host": ["{{base_url}}"],
+              "path": ["api", "collections", "1", "signatures"]
+            }
+          }
+        },
+        {
+          "name": "Update PDF Path",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"pdfPath\": \"/receipts/collection-123.pdf\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/collections/1/pdf",
+              "host": ["{{base_url}}"],
+              "path": ["api", "collections", "1", "pdf"]
+            }
+          }
+        },
+        {
+          "name": "Update Dispatcher Signature Only",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"dispatcherSignature\": \"data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/collections/1/signatures",
+              "host": ["{{base_url}}"],
+              "path": ["api", "collections", "1", "signatures"]
+            }
+          }
+        },
+        {
+          "name": "Update Collector Signature Only",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"collectorSignature\": \"data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/collections/1/signatures",
+              "host": ["{{base_url}}"],
+              "path": ["api", "collections", "1", "signatures"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "4. Reports",
+      "item": [
+        {
+          "name": "Get Summary Report",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/collections/reports/summary?startDate=2024-01-01&endDate=2024-12-31",
+              "host": ["{{base_url}}"],
+              "path": ["api", "collections", "reports", "summary"],
+              "query": [
+                {
+                  "key": "startDate",
+                  "value": "2024-01-01"
+                },
+                {
+                  "key": "endDate",
+                  "value": "2024-12-31"
+                },
+                {
+                  "key": "clientId",
+                  "value": "1",
+                  "disabled": true
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get By-Client Report",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/collections/reports/by-client?startDate=2024-01-01&endDate=2024-12-31",
+              "host": ["{{base_url}}"],
+              "path": ["api", "collections", "reports", "by-client"],
+              "query": [
+                {
+                  "key": "startDate",
+                  "value": "2024-01-01"
+                },
+                {
+                  "key": "endDate",
+                  "value": "2024-12-31"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Summary - This Month",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/collections/reports/summary?startDate=2024-11-01&endDate=2024-11-30",
+              "host": ["{{base_url}}"],
+              "path": ["api", "collections", "reports", "summary"],
+              "query": [
+                {
+                  "key": "startDate",
+                  "value": "2024-11-01"
+                },
+                {
+                  "key": "endDate",
+                  "value": "2024-11-30"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get By-Client - Specific Client",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/collections/reports/by-client?startDate=2024-01-01&endDate=2024-12-31&clientId=1",
+              "host": ["{{base_url}}"],
+              "path": ["api", "collections", "reports", "by-client"],
+              "query": [
+                {
+                  "key": "startDate",
+                  "value": "2024-01-01"
+                },
+                {
+                  "key": "endDate",
+                  "value": "2024-12-31"
+                },
+                {
+                  "key": "clientId",
+                  "value": "1"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "5. Examples - Different Scenarios",
+      "item": [
+        {
+          "name": "Create - Small Collection (1-5 boxes)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"clientId\": 2,\n  \"totalBoxes\": 3,\n  \"boxDescription\": \"Small batch - HR files\",\n  \"dispatcherName\": \"Sarah Johnson\",\n  \"collectorName\": \"Mike Wilson\",\n  \"collectionDate\": \"2024-11-20\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/collections",
+              "host": ["{{base_url}}"],
+              "path": ["api", "collections"]
+            }
+          }
+        },
+        {
+          "name": "Create - Large Collection (50+ boxes)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"clientId\": 1,\n  \"totalBoxes\": 75,\n  \"boxDescription\": \"Annual archive - Complete year 2023\",\n  \"dispatcherName\": \"John Smith\",\n  \"collectorName\": \"Transport Team Lead\",\n  \"collectionDate\": \"2024-11-22\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/collections",
+              "host": ["{{base_url}}"],
+              "path": ["api", "collections"]
+            }
+          }
+        },
+        {
+          "name": "Create - Emergency Collection",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"clientId\": 3,\n  \"totalBoxes\": 8,\n  \"boxDescription\": \"URGENT: Legal documents for court case\",\n  \"dispatcherName\": \"Michael Brown\",\n  \"collectorName\": \"Express Courier\",\n  \"collectionDate\": \"2024-11-18\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/collections",
+              "host": ["{{base_url}}"],
+              "path": ["api", "collections"]
+            }
+          }
+        },
+        {
+          "name": "Create - Monthly Routine Collection",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"clientId\": 5,\n  \"totalBoxes\": 20,\n  \"boxDescription\": \"November 2024 - Monthly collection schedule\",\n  \"dispatcherName\": \"David Wilson\",\n  \"collectorName\": \"Regular Driver\",\n  \"collectionDate\": \"2024-11-25\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/collections",
+              "host": ["{{base_url}}"],
+              "path": ["api", "collections"]
+            }
+          }
+        },
+        {
+          "name": "Get Collections - This Week",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/collections?startDate=2024-11-18&endDate=2024-11-24&sortBy=collection_date&sortOrder=DESC",
+              "host": ["{{base_url}}"],
+              "path": ["api", "collections"],
+              "query": [
+                {
+                  "key": "startDate",
+                  "value": "2024-11-18"
+                },
+                {
+                  "key": "endDate",
+                  "value": "2024-11-24"
+                },
+                {
+                  "key": "sortBy",
+                  "value": "collection_date"
+                },
+                {
+                  "key": "sortOrder",
+                  "value": "DESC"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Collections - Large Only (50+ boxes)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/collections?sortBy=total_boxes&sortOrder=DESC&limit=10",
+              "host": ["{{base_url}}"],
+              "path": ["api", "collections"],
+              "query": [
+                {
+                  "key": "sortBy",
+                  "value": "total_boxes"
+                },
+                {
+                  "key": "sortOrder",
+                  "value": "DESC"
+                },
+                {
+                  "key": "limit",
+                  "value": "10"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

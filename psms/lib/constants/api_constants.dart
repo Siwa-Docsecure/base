@@ -1,5 +1,6 @@
 class ApiConstants {
-  static const String baseUrl = 'http://localhost:3000/api';
+  // static const String baseUrl = 'http://localhost:3000/api';
+  static const String baseUrl = 'https://physicalstorage.docsecuresd.com/api';
 
   // ============================================
   // AUTH ENDPOINTS

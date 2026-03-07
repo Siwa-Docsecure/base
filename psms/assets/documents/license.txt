@@ -1,0 +1,95 @@
+Below is a comprehensive End User License Agreement (EULA) formatted for display during the installation of your Windows software. It includes all necessary legal protections while remaining clear and readable. The developer details are listed at the end as requested.
+
+
+
+END USER LICENSE AGREEMENT
+
+PLEASE READ THIS AGREEMENT CAREFULLY BEFORE INSTALLING OR USING THE SOFTWARE.
+
+This End User License Agreement ("Agreement") is a legal agreement between you (either an individual or a single entity) and DocSecure Eswatini ("Licensor", "we", "us", or "our") for the software product identified as the DocSecure Physical Storage Management System ("Software"), which includes computer software, associated media, printed materials, and online or electronic documentation.
+
+BY INSTALLING, COPYING, OR OTHERWISE USING THE SOFTWARE, YOU AGREE TO BE BOUND BY THE TERMS OF THIS AGREEMENT. IF YOU DO NOT AGREE, DO NOT INSTALL OR USE THE SOFTWARE.
+
+
+
+1. GRANT OF LICENSE
+
+Licensor grants you a non-exclusive, non-transferable, revocable license to install and use the Software on one or more computers within your organization solely for your internal business purposes related to physical storage management. The Software includes features for:
+
+- Managing warehouse inventory (boxes, racking labels, retention/destruction tracking)
+- Recording collections, retrievals, and deliveries with electronic signatures
+- Generating PDF reports and printing
+- Providing client access via a web interface for box viewing, retrieval requests, destruction requests, and collection requests
+- Uploading box records via spreadsheet
+- Searching and viewing large volumes of data
+
+You may not use the Software for any other purpose without the prior written consent of Licensor.
+
+2. LICENSE RESTRICTIONS
+
+You shall not, and shall not permit any third party to:
+
+- Copy, modify, adapt, translate, or create derivative works of the Software
+- Reverse engineer, decompile, disassemble, or otherwise attempt to derive the source code
+- Rent, lease, lend, sell, sublicense, assign, distribute, publish, transfer, or otherwise make available the Software
+- Remove, alter, or obscure any proprietary notices or labels
+- Use the Software in any manner that violates applicable laws or regulations
+
+3. INTELLECTUAL PROPERTY RIGHTS
+
+The Software is owned by Licensor and is protected by copyright laws, international treaty provisions, and other intellectual property laws. All title, ownership rights, and intellectual property rights in and to the Software shall remain with Licensor. The Software is licensed, not sold.
+
+4. USER OBLIGATIONS
+
+You agree to:
+
+- Maintain the confidentiality of any login credentials provided for client or staff access
+- Ensure that any electronic signatures obtained via the Software are legally binding and comply with applicable laws
+- Regularly back up your data; Licensor is not responsible for data loss
+- Comply with all data protection laws applicable to personal data you process using the Software
+
+5. WARRANTY DISCLAIMER
+
+THE SOFTWARE IS PROVIDED "AS IS" AND "AS AVAILABLE" WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, TITLE, AND NON-INFRINGEMENT. LICENSOR DOES NOT WARRANT THAT THE SOFTWARE WILL OPERATE UNINTERRUPTED OR ERROR-FREE, OR THAT ALL DEFECTS WILL BE CORRECTED. NO ORAL OR WRITTEN INFORMATION OR ADVICE GIVEN BY LICENSOR OR ITS AUTHORIZED REPRESENTATIVES SHALL CREATE A WARRANTY.
+
+6. LIMITATION OF LIABILITY
+
+TO THE MAXIMUM EXTENT PERMITTED BY APPLICABLE LAW, IN NO EVENT SHALL LICENSOR BE LIABLE FOR ANY SPECIAL, INCIDENTAL, INDIRECT, OR CONSEQUENTIAL DAMAGES WHATSOEVER (INCLUDING, WITHOUT LIMITATION, DAMAGES FOR LOSS OF BUSINESS PROFITS, BUSINESS INTERRUPTION, LOSS OF BUSINESS INFORMATION, OR ANY OTHER PECUNIARY LOSS) ARISING OUT OF THE USE OF OR INABILITY TO USE THE SOFTWARE, EVEN IF LICENSOR HAS BEEN ADVISED OF THE POSSIBILITY OF SUCH DAMAGES. IN ANY CASE, LICENSOR'S ENTIRE LIABILITY UNDER ANY PROVISION OF THIS AGREEMENT SHALL BE LIMITED TO THE AMOUNT ACTUALLY PAID BY YOU FOR THE SOFTWARE.
+
+7. INDEMNIFICATION
+
+You agree to indemnify, defend, and hold harmless Licensor and its officers, directors, employees, agents, and affiliates from and against any and all claims, liabilities, damages, losses, or expenses (including reasonable attorneys' fees) arising out of or in connection with your use of the Software, violation of this Agreement, or violation of any applicable law.
+
+8. TERMINATION
+
+Without prejudice to any other rights, Licensor may terminate this Agreement immediately if you fail to comply with any term or condition. Upon termination, you shall cease all use of the Software and destroy all copies, full or partial, of the Software.
+
+9. GOVERNING LAW
+
+This Agreement shall be governed by and construed in accordance with the laws of the Kingdom of Eswatini, without regard to its conflict of laws principles. Any legal action or proceeding arising under this Agreement shall be brought exclusively in the courts of Eswatini.
+
+10. ENTIRE AGREEMENT
+
+This Agreement constitutes the entire agreement between the parties concerning the subject matter hereof and supersedes all prior or contemporaneous oral or written agreements, communications, or understandings.
+
+11. SEVERABILITY
+
+If any provision of this Agreement is held to be unenforceable or invalid, that provision shall be enforced to the maximum extent possible, and the remaining provisions shall remain in full force and effect.
+
+12. AMENDMENTS
+
+Licensor reserves the right to amend this Agreement from time to time. Continued use of the Software after such amendments constitutes acceptance of the new terms.
+
+
+
+BY INSTALLING OR USING THE SOFTWARE, YOU ACKNOWLEDGE THAT YOU HAVE READ THIS AGREEMENT, UNDERSTAND IT, AND AGREE TO BE BOUND BY ITS TERMS AND CONDITIONS.
+
+Developer Details:
+
+DocSecure Eswatini  
+Physical Address: Matsapha, Eswatini, M200 
+Email: systems@docsecuresd.com 
+Phone: +268 76477486  
+Website: docsecuresd.com
+
+For all legal notices, please write to the Legal Department at the address above or email info@docsecuresd.com.

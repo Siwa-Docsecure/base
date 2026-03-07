@@ -1,4 +1,6 @@
+import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:http/http.dart' as http;
@@ -40,92 +42,81 @@ class AuthController extends GetxController {
 
   // Login function
   Future<bool> login(String username, String password) async {
-    try {
-      isLoading.value = true;
-      errorMessage.value = '';
+  try {
+    isLoading.value = true;
+    errorMessage.value = '';
 
-      final response = await http.post(
-        Uri.parse('${ApiConstants.baseUrl}${ApiConstants.login}'),
-        headers: {'Content-Type': 'application/json'},
-        body: json.encode(LoginRequest(
-          username: username,
-          password: password,
-        ).toJson()),
-      );
+    final response = await http.post(
+      Uri.parse('${ApiConstants.baseUrl}${ApiConstants.login}'),
+      headers: {'Content-Type': 'application/json'},
+      body: json.encode(LoginRequest(
+        username: username,
+        password: password,
+      ).toJson()),
+    ).timeout(const Duration(seconds: 15));
 
-      if (response.statusCode == 200) {
-        final authResponse = AuthResponse.fromJson(json.decode(response.body));
-        
-        if (authResponse.status == 'success' && authResponse.data != null) {
-          // Save tokens
-          if (authResponse.data!.accessToken != null) {
-            accessToken.value = authResponse.data!.accessToken!;
-            await StorageService.saveAccessToken(authResponse.data!.accessToken!);
-          }
-          
-          if (authResponse.data!.refreshToken != null) {
-            refreshToken.value = authResponse.data!.refreshToken!;
-            await StorageService.saveRefreshToken(authResponse.data!.refreshToken!);
-          }
-          
-          // Save user data
-          if (authResponse.data!.user != null) {
-            currentUser.value = authResponse.data!.user;
-            await StorageService.saveUser(authResponse.data!.user!.toJson());
-            await StorageService.saveUserRole(authResponse.data!.user!.role);
-          }
-          
-          // Set login status
-          await StorageService.setLoggedIn(true);
-          isAuthenticated.value = true;
-          
-          Get.snackbar(
-            'Success',
-            'Login successful',
-            backgroundColor: Colors.green,
-            colorText: Colors.white,
-          );
-          
-          isLoading.value = false;
-          return true;
+    // Log response for debugging
+    print('Status code: ${response.statusCode}');
+    print('Response body: ${response.body}');
+
+    if (response.statusCode != 200) {
+      String errorMsg = 'Server error (${response.statusCode})';
+      try {
+        final errorJson = json.decode(response.body);
+        errorMsg = errorJson['message'] ?? errorMsg;
+      } catch (_) {
+        // If response is not JSON, show a snippet
+        if (response.body.trim().startsWith('<!DOCTYPE')) {
+          errorMsg = 'Server returned an HTML page. The API endpoint may be incorrect or the server is down.';
         } else {
-          errorMessage.value = authResponse.message;
-          Get.snackbar(
-            'Error',
-            authResponse.message,
-            backgroundColor: Colors.red,
-            colorText: Colors.white,
-          );
+          errorMsg = 'Unexpected response: ${response.body.substring(0, 100)}...';
         }
-      } else {
-        final errorResponse = json.decode(response.body);
-        errorMessage.value = errorResponse['message'] ?? 'Login failed';
-        Get.snackbar(
-          'Error',
-          errorResponse['message'] ?? 'Login failed',
-          backgroundColor: Colors.red,
-          colorText: Colors.white,
-        );
       }
-    } catch (e) {
-      errorMessage.value = 'Connection error: $e';
-      Get.snackbar(
-        'Error',
-        'Connection error: $e',
-        backgroundColor: Colors.red,
-        colorText: Colors.white,
-      );
-    } finally {
-      isLoading.value = false;
+      errorMessage.value = errorMsg;
+      Get.snackbar('Error', errorMsg, backgroundColor: Colors.red);
+      return false;
     }
-    return false;
+
+    // Try to decode JSON
+    final Map<String, dynamic> responseData;
+    try {
+      responseData = json.decode(response.body);
+    } catch (e) {
+      errorMessage.value = 'Invalid JSON response from server';
+      Get.snackbar('Error', 'Server returned malformed data', backgroundColor: Colors.red);
+      return false;
+    }
+
+    final authResponse = AuthResponse.fromJson(responseData);
+
+    if (authResponse.status == 'success' && authResponse.data != null) {
+      // ... save tokens and user data (unchanged) ...
+      return true;
+    } else {
+      errorMessage.value = authResponse.message;
+      Get.snackbar('Error', authResponse.message, backgroundColor: Colors.red);
+      return false;
+    }
+  } on SocketException {
+    errorMessage.value = 'Network error – please check your internet connection';
+    Get.snackbar('Error', 'No internet connection', backgroundColor: Colors.red);
+  } on TimeoutException {
+    errorMessage.value = 'Request timed out – server may be slow or unreachable';
+    Get.snackbar('Error', 'Connection timeout', backgroundColor: Colors.red);
+  } catch (e) {
+    errorMessage.value = 'Unexpected error: $e';
+    Get.snackbar('Error', 'Something went wrong', backgroundColor: Colors.red);
+  } finally {
+    isLoading.value = false;
   }
+  return false;
+}
 
   // Logout function
   Future<bool> logout() async {
     try {
       isLoading.value = true;
-      
+
       final token = StorageService.getAccessToken();
       if (token != null) {
         final response = await http.post(
@@ -149,7 +140,7 @@ class AuthController extends GetxController {
           return true;
         }
       }
-      
+
       // If API call fails, still clear local session
       await clearSession();
       Get.offAllNamed('/login');
@@ -188,7 +179,8 @@ class AuthController extends GetxController {
 
       if (response.statusCode == 200) {
         final responseData = json.decode(response.body);
-        if (responseData['status'] == 'success' && responseData['data'] != null) {
+        if (responseData['status'] == 'success' &&
+            responseData['data'] != null) {
           final newToken = responseData['data']['accessToken'];
           accessToken.value = newToken;
           await StorageService.saveAccessToken(newToken);
@@ -217,7 +209,8 @@ class AuthController extends GetxController {
 
       if (response.statusCode == 200) {
         final responseData = json.decode(response.body);
-        if (responseData['status'] == 'success' && responseData['data'] != null) {
+        if (responseData['status'] == 'success' &&
+            responseData['data'] != null) {
           final user = UserModel.fromJson(responseData['data']);
           currentUser.value = user;
           await StorageService.saveUser(user.toJson());
@@ -240,7 +233,8 @@ class AuthController extends GetxController {
   }
 
   // Change password
-  Future<bool> changePassword(String currentPassword, String newPassword) async {
+  Future<bool> changePassword(
+      String currentPassword, String newPassword) async {
     try {
       isLoading.value = true;
       final token = StorageService.getAccessToken();
@@ -323,12 +317,12 @@ class AuthController extends GetxController {
   // Check if user has permission
   bool hasPermission(String permission) {
     if (currentUser.value == null) return false;
-    
+
     // Admin has all permissions
     if (currentUser.value!.role == 'admin') return true;
-    
+
     final perms = currentUser.value!.permissions;
-    
+
     switch (permission) {
       case 'canCreateBoxes':
         return perms.canCreateBoxes;
@@ -354,7 +348,7 @@ class AuthController extends GetxController {
   // Navigate to appropriate home page based on role
   void navigateToHome() {
     final role = currentUser.value?.role;
-    
+
     if (role == 'client') {
       Get.offAllNamed('/client-home');
     } else if (role == 'admin' || role == 'staff') {

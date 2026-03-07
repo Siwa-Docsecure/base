@@ -327,6 +327,21 @@ class BulkBoxData {
       if (boxImage != null) 'boxImage': boxImage,
     };
   }
+
+  factory BulkBoxData.fromMap(Map<String, dynamic> map) {
+    return BulkBoxData(
+      clientId: map['clientId'] as int,
+      boxIndex: map['boxIndex'] as String,
+      boxDescription: map['boxDescription'] as String,
+      dateReceived: map['dateReceived'] as String,
+      retentionYears: map['retentionYears'] ?? 7,
+      rackingLabelId: map['rackingLabelId'] as int?,
+      boxSize: map['boxSize'] as String?,
+      dataYears: map['dataYears'] as String?,
+      dateRange: map['dateRange'] as String?,
+      boxImage: map['boxImage'] as String?,
+    );
+  }
 }
 
 class BulkCreateBoxRequest {
@@ -334,10 +349,17 @@ class BulkCreateBoxRequest {
 
   BulkCreateBoxRequest({required this.boxes});
 
+  // ADD THIS ↓
+  factory BulkCreateBoxRequest.fromMap(Map<String, dynamic> map) {
+    return BulkCreateBoxRequest(
+      boxes: (map['boxes'] as List<dynamic>)
+          .map((b) => BulkBoxData.fromMap(b as Map<String, dynamic>))
+          .toList(),
+    );
+  }
+
   Map<String, dynamic> toJson() {
-    return {
-      'boxes': boxes.map((box) => box.toJson()).toList(),
-    };
+    return {'boxes': boxes.map((b) => b.toJson()).toList()};
   }
 }
 
@@ -431,13 +453,25 @@ class BoxStats {
   });
 
   factory BoxStats.fromJson(Map<String, dynamic> json) {
+    // Helper to safely convert any value to int
+    int _toInt(dynamic value) {
+      if (value == null) return 0;
+      if (value is int) return value;
+      if (value is double) return value.round();
+      if (value is String) {
+        // Try parsing as int, fallback to double rounding, else 0
+        return int.tryParse(value) ?? double.tryParse(value)?.round() ?? 0;
+      }
+      return 0;
+    }
+
     return BoxStats(
-      totalBoxes: json['total_boxes'] ?? 0,
-      boxesStored: json['boxes_stored'] ?? 0,
-      boxesRetrieved: json['boxes_retrieved'] ?? 0,
-      boxesDestroyed: json['boxes_destroyed'] ?? 0,
-      boxesPendingDestruction: json['boxes_pending_destruction'] ?? 0,
-      totalClientsWithBoxes: json['total_clients_with_boxes'] ?? 0,
+      totalBoxes: _toInt(json['total_boxes']),
+      boxesStored: _toInt(json['boxes_stored']),
+      boxesRetrieved: _toInt(json['boxes_retrieved']),
+      boxesDestroyed: _toInt(json['boxes_destroyed']),
+      boxesPendingDestruction: _toInt(json['boxes_pending_destruction']),
+      totalClientsWithBoxes: _toInt(json['total_clients_with_boxes']),
     );
   }
 }
@@ -458,6 +492,6 @@ class ChangeBoxStatusRequest {
 
 class BoxNumberHelper {
   static String formatBoxNumber(String clientCode, String boxIndex) {
-    return '$clientCode-${boxIndex.toUpperCase()}';
+    return '${boxIndex.toUpperCase()}';
   }
 }

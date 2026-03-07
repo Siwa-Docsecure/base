@@ -15,7 +15,7 @@
     "document-management",
     "api"
   ],
-  "author": "Your Name",
+  "author": "Siwakhile Masilela",
   "license": "MIT",
   "dependencies": {
     "bcryptjs": "^2.4.3",

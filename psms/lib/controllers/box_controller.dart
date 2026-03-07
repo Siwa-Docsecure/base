@@ -23,6 +23,7 @@ class BoxController extends GetxController {
   final RxInt currentPage = 1.obs;
   final RxInt totalPages = 1.obs;
   final RxInt totalBoxes = 0.obs;
+  final RxInt pageSize = 20.obs;
 
   // Filter variables
   final RxString searchQuery = ''.obs;
@@ -64,7 +65,8 @@ class BoxController extends GetxController {
       final client = clients.firstWhere(
         (client) => client.clientId == clientId,
       );
-      print('Found client: ${client.clientName} with code: ${client.clientCode}');
+      print(
+          'Found client: ${client.clientName} with code: ${client.clientCode}');
       return client.clientCode;
     } catch (e) {
       print('Client not found for ID: $clientId. Error: $e');
@@ -142,8 +144,9 @@ class BoxController extends GetxController {
           }
 
           print('Clients data found: ${clientsData.length} items');
-          clients.value =
-              clientsData.map((client) => ClientModel.fromJson(client)).toList();
+          clients.value = clientsData
+              .map((client) => ClientModel.fromJson(client))
+              .toList();
           print('Clients loaded successfully: ${clients.length}');
         } else {
           print('API error: ${responseData['message']}');
@@ -175,8 +178,9 @@ class BoxController extends GetxController {
         if (responseData['status'] == 'success' &&
             responseData['data'] != null) {
           final clientsData = responseData['data'] as List<dynamic>;
-          clients.value =
-              clientsData.map((client) => ClientModel.fromJson(client)).toList();
+          clients.value = clientsData
+              .map((client) => ClientModel.fromJson(client))
+              .toList();
           print('Alternative clients loaded: ${clients.length}');
         }
       }
@@ -196,8 +200,9 @@ class BoxController extends GetxController {
         if (responseData['status'] == 'success' &&
             responseData['data'] != null) {
           final labelsData = responseData['data'] as List<dynamic>;
-          rackingLabels.value =
-              labelsData.map((label) => RackingLabelModel.fromJson(label)).toList();
+          rackingLabels.value = labelsData
+              .map((label) => RackingLabelModel.fromJson(label))
+              .toList();
         }
       }
     } catch (e) {
@@ -218,8 +223,9 @@ class BoxController extends GetxController {
         if (responseData['status'] == 'success' &&
             responseData['data'] != null) {
           final labelsData = responseData['data'] as List<dynamic>;
-          availableRackingLabels.value =
-              labelsData.map((label) => RackingLabelModel.fromJson(label)).toList();
+          availableRackingLabels.value = labelsData
+              .map((label) => RackingLabelModel.fromJson(label))
+              .toList();
         }
       }
     } catch (e) {
@@ -268,45 +274,60 @@ class BoxController extends GetxController {
   // ============================================
 
   Future<void> getAllBoxes({
-    int page = 1,
-    int limit = 20,
+    int? page,
+    int? limit,
     String? search,
     String? status,
     int? clientId,
     bool? pendingDestruction,
     String? sortBy,
     String? sortOrder,
+    bool refresh = true,
   }) async {
+    if (isLoading.value) return;
+    isLoading.value = true;
+    errorMessage.value = '';
+
     try {
-      isLoading.value = true;
-      errorMessage.value = '';
+      final effectivePage = page ?? (refresh ? 1 : currentPage.value);
+      final effectiveLimit = limit ?? pageSize.value;
 
       final params = <String, String>{
-        'page': page.toString(),
-        'limit': limit.toString(),
+        'page': effectivePage.toString(),
+        'limit': effectiveLimit.toString(),
       };
       if (search != null && search.isNotEmpty) params['search'] = search;
       if (status != null && status.isNotEmpty) params['status'] = status;
-      if (clientId != null && clientId > 0) params['clientId'] = clientId.toString();
+      if (clientId != null && clientId > 0)
+        params['clientId'] = clientId.toString();
       if (pendingDestruction != null && pendingDestruction)
         params['pendingDestruction'] = 'true';
       if (sortBy != null && sortBy.isNotEmpty) params['sortBy'] = sortBy;
-      if (sortOrder != null && sortOrder.isNotEmpty) params['sortOrder'] = sortOrder;
+      if (sortOrder != null && sortOrder.isNotEmpty)
+        params['sortOrder'] = sortOrder;
 
-      final uri = Uri.parse(
-        '${ApiConstants.baseUrl}${ApiConstants.boxes}',
-      ).replace(queryParameters: params);
+      final uri = Uri.parse('${ApiConstants.baseUrl}${ApiConstants.boxes}')
+          .replace(queryParameters: params);
 
       final response = await http.get(uri, headers: getAuthHeaders());
 
       if (response.statusCode == 200) {
         final boxResponse = BoxesResponse.fromJson(json.decode(response.body));
         if (boxResponse.status == 'success' && boxResponse.data != null) {
-          boxes.value = boxResponse.data!.boxes;
-          currentPage.value = boxResponse.data!.pagination?.page ?? page;
+          final newBoxes = boxResponse.data!.boxes;
+
+          if (refresh) {
+            boxes.value = newBoxes;
+            currentPage.value = effectivePage;
+          } else {
+            boxes.addAll(newBoxes);
+            currentPage.value = effectivePage;
+          }
+
           totalPages.value = boxResponse.data!.pagination?.totalPages ?? 1;
           totalBoxes.value = boxResponse.data!.pagination?.total ?? 0;
 
+          // Store filter values for later use (e.g., next page)
           if (search != null) searchQuery.value = search;
           if (status != null) statusFilter.value = status;
           if (clientId != null) clientFilter.value = clientId;
@@ -321,8 +342,9 @@ class BoxController extends GetxController {
         }
       } else {
         final errorResponse = json.decode(response.body);
-        errorMessage.value = errorResponse['message'] ?? 'Failed to fetch boxes';
-        Get.snackbar('Error', errorResponse['message'] ?? 'Failed to fetch boxes',
+        errorMessage.value =
+            errorResponse['message'] ?? 'Failed to fetch boxes';
+        Get.snackbar('Error', errorMessage.value,
             backgroundColor: Colors.red, colorText: Colors.white);
       }
     } catch (e) {
@@ -332,6 +354,20 @@ class BoxController extends GetxController {
     } finally {
       isLoading.value = false;
     }
+  }
+
+  Future<void> loadNextPage() async {
+    if (currentPage.value >= totalPages.value || isLoading.value) return;
+    await getAllBoxes(
+      page: currentPage.value + 1,
+      search: searchQuery.value,
+      status: statusFilter.value,
+      clientId: clientFilter.value > 0 ? clientFilter.value : null,
+      pendingDestruction: pendingDestructionFilter.value,
+      sortBy: sortBy.value,
+      sortOrder: sortOrder.value,
+      refresh: false,
+    );
   }
 
   Future<BoxModel?> getBoxById(int boxId) async {
@@ -376,7 +412,8 @@ class BoxController extends GetxController {
     try {
       if (!canCreateBoxes) {
         errorMessage.value = 'You do not have permission to create boxes';
-        Get.snackbar('Permission Denied', 'You do not have permission to create boxes',
+        Get.snackbar(
+            'Permission Denied', 'You do not have permission to create boxes',
             backgroundColor: Colors.orange, colorText: Colors.white);
         return false;
       }
@@ -434,7 +471,8 @@ class BoxController extends GetxController {
       } else {
         final errorResponse = json.decode(response.body);
         errorMessage.value = errorResponse['message'] ?? 'Failed to create box';
-        Get.snackbar('Error', errorResponse['message'] ?? 'Failed to create box',
+        Get.snackbar(
+            'Error', errorResponse['message'] ?? 'Failed to create box',
             backgroundColor: Colors.red, colorText: Colors.white);
       }
     } catch (e) {
@@ -451,7 +489,8 @@ class BoxController extends GetxController {
     try {
       if (!canEditBoxes) {
         errorMessage.value = 'You do not have permission to edit boxes';
-        Get.snackbar('Permission Denied', 'You do not have permission to edit boxes',
+        Get.snackbar(
+            'Permission Denied', 'You do not have permission to edit boxes',
             backgroundColor: Colors.orange, colorText: Colors.white);
         return false;
       }
@@ -483,7 +522,8 @@ class BoxController extends GetxController {
       } else {
         final errorResponse = json.decode(response.body);
         errorMessage.value = errorResponse['message'] ?? 'Failed to update box';
-        Get.snackbar('Error', errorResponse['message'] ?? 'Failed to update box',
+        Get.snackbar(
+            'Error', errorResponse['message'] ?? 'Failed to update box',
             backgroundColor: Colors.red, colorText: Colors.white);
       }
     } catch (e) {
@@ -533,7 +573,8 @@ class BoxController extends GetxController {
         final errorResponse = json.decode(response.body);
         errorMessage.value =
             errorResponse['message'] ?? 'Failed to change box status';
-        Get.snackbar('Error', errorResponse['message'] ?? 'Failed to change box status',
+        Get.snackbar(
+            'Error', errorResponse['message'] ?? 'Failed to change box status',
             backgroundColor: Colors.red, colorText: Colors.white);
       }
     } catch (e) {
@@ -550,7 +591,8 @@ class BoxController extends GetxController {
     try {
       if (!canDeleteBoxes) {
         errorMessage.value = 'You do not have permission to delete boxes';
-        Get.snackbar('Permission Denied', 'You do not have permission to delete boxes',
+        Get.snackbar(
+            'Permission Denied', 'You do not have permission to delete boxes',
             backgroundColor: Colors.orange, colorText: Colors.white);
         return false;
       }
@@ -581,7 +623,8 @@ class BoxController extends GetxController {
       } else {
         final errorResponse = json.decode(response.body);
         errorMessage.value = errorResponse['message'] ?? 'Failed to delete box';
-        Get.snackbar('Error', errorResponse['message'] ?? 'Failed to delete box',
+        Get.snackbar(
+            'Error', errorResponse['message'] ?? 'Failed to delete box',
             backgroundColor: Colors.red, colorText: Colors.white);
       }
     } catch (e) {
@@ -655,11 +698,12 @@ class BoxController extends GetxController {
         }
       } else {
         final errorResponse = json.decode(response.body);
-        errorMessage.value =
-            errorResponse['message'] ?? 'Failed to fetch pending destruction boxes';
+        errorMessage.value = errorResponse['message'] ??
+            'Failed to fetch pending destruction boxes';
         Get.snackbar(
           'Error',
-          errorResponse['message'] ?? 'Failed to fetch pending destruction boxes',
+          errorResponse['message'] ??
+              'Failed to fetch pending destruction boxes',
           backgroundColor: Colors.red,
           colorText: Colors.white,
         );
@@ -700,7 +744,8 @@ class BoxController extends GetxController {
         final errorResponse = json.decode(response.body);
         errorMessage.value =
             errorResponse['message'] ?? 'Failed to fetch client boxes';
-        Get.snackbar('Error', errorResponse['message'] ?? 'Failed to fetch client boxes',
+        Get.snackbar(
+            'Error', errorResponse['message'] ?? 'Failed to fetch client boxes',
             backgroundColor: Colors.red, colorText: Colors.white);
       }
     } catch (e) {
@@ -716,7 +761,8 @@ class BoxController extends GetxController {
   // BULK OPERATIONS
   // ============================================
 
-  Future<Map<String, dynamic>> bulkCreateBoxes(BulkCreateBoxRequest request) async {
+  Future<Map<String, dynamic>> bulkCreateBoxes(
+      BulkCreateBoxRequest request) async {
     try {
       if (!canCreateBoxes) {
         return {
@@ -811,7 +857,8 @@ class BoxController extends GetxController {
         final errorResponse = json.decode(response.body);
         errorMessage.value =
             errorResponse['message'] ?? 'Failed to bulk update box status';
-        Get.snackbar('Error', errorResponse['message'] ?? 'Failed to bulk update box status',
+        Get.snackbar('Error',
+            errorResponse['message'] ?? 'Failed to bulk update box status',
             backgroundColor: Colors.red, colorText: Colors.white);
       }
     } catch (e) {
@@ -846,15 +893,21 @@ class BoxController extends GetxController {
       errorMessage.value = '';
 
       final params = <String, String>{};
-      if (clientId != null && clientId > 0) params['clientId'] = clientId.toString();
+      if (clientId != null && clientId > 0)
+        params['clientId'] = clientId.toString();
       if (status != null && status.isNotEmpty) params['status'] = status;
-      if (rackingLabelId != null && rackingLabelId > 0) params['rackingLabelId'] = rackingLabelId.toString();
+      if (rackingLabelId != null && rackingLabelId > 0)
+        params['rackingLabelId'] = rackingLabelId.toString();
       if (search != null && search.isNotEmpty) params['search'] = search;
-      if (dateFrom != null && dateFrom.isNotEmpty) params['dateFrom'] = dateFrom;
+      if (dateFrom != null && dateFrom.isNotEmpty)
+        params['dateFrom'] = dateFrom;
       if (dateTo != null && dateTo.isNotEmpty) params['dateTo'] = dateTo;
-      if (destructionYearFrom != null) params['destructionYearFrom'] = destructionYearFrom.toString();
-      if (destructionYearTo != null) params['destructionYearTo'] = destructionYearTo.toString();
-      if (retentionYears != null) params['retentionYears'] = retentionYears.toString();
+      if (destructionYearFrom != null)
+        params['destructionYearFrom'] = destructionYearFrom.toString();
+      if (destructionYearTo != null)
+        params['destructionYearTo'] = destructionYearTo.toString();
+      if (retentionYears != null)
+        params['retentionYears'] = retentionYears.toString();
       if (!includeStats) params['includeStats'] = 'false';
 
       final uri = Uri.parse(
@@ -865,16 +918,19 @@ class BoxController extends GetxController {
 
       if (response.statusCode == 200) {
         final responseData = json.decode(response.body);
-        if (responseData['status'] == 'success' && responseData['data'] != null) {
+        if (responseData['status'] == 'success' &&
+            responseData['data'] != null) {
           return BoxReportResponse.fromJson(responseData['data']);
         } else {
-          errorMessage.value = responseData['message'] ?? 'Failed to generate report';
+          errorMessage.value =
+              responseData['message'] ?? 'Failed to generate report';
           Get.snackbar('Error', errorMessage.value,
               backgroundColor: Colors.red, colorText: Colors.white);
         }
       } else {
         final errorResponse = json.decode(response.body);
-        errorMessage.value = errorResponse['message'] ?? 'Failed to generate report';
+        errorMessage.value =
+            errorResponse['message'] ?? 'Failed to generate report';
         Get.snackbar('Error', errorMessage.value,
             backgroundColor: Colors.red, colorText: Colors.white);
       }
@@ -910,13 +966,18 @@ class BoxController extends GetxController {
         params['clientIds'] = clientIds.join(',');
       }
       if (status != null && status.isNotEmpty) params['status'] = status;
-      if (rackingLabelId != null && rackingLabelId > 0) params['rackingLabelId'] = rackingLabelId.toString();
+      if (rackingLabelId != null && rackingLabelId > 0)
+        params['rackingLabelId'] = rackingLabelId.toString();
       if (search != null && search.isNotEmpty) params['search'] = search;
-      if (dateFrom != null && dateFrom.isNotEmpty) params['dateFrom'] = dateFrom;
+      if (dateFrom != null && dateFrom.isNotEmpty)
+        params['dateFrom'] = dateFrom;
       if (dateTo != null && dateTo.isNotEmpty) params['dateTo'] = dateTo;
-      if (destructionYearFrom != null) params['destructionYearFrom'] = destructionYearFrom.toString();
-      if (destructionYearTo != null) params['destructionYearTo'] = destructionYearTo.toString();
-      if (retentionYears != null) params['retentionYears'] = retentionYears.toString();
+      if (destructionYearFrom != null)
+        params['destructionYearFrom'] = destructionYearFrom.toString();
+      if (destructionYearTo != null)
+        params['destructionYearTo'] = destructionYearTo.toString();
+      if (retentionYears != null)
+        params['retentionYears'] = retentionYears.toString();
       if (!includeStats) params['includeStats'] = 'false';
 
       final uri = Uri.parse(
@@ -927,16 +988,19 @@ class BoxController extends GetxController {
 
       if (response.statusCode == 200) {
         final responseData = json.decode(response.body);
-        if (responseData['status'] == 'success' && responseData['data'] != null) {
+        if (responseData['status'] == 'success' &&
+            responseData['data'] != null) {
           return BulkBoxReportResponse.fromJson(responseData['data']);
         } else {
-          errorMessage.value = responseData['message'] ?? 'Failed to generate bulk report';
+          errorMessage.value =
+              responseData['message'] ?? 'Failed to generate bulk report';
           Get.snackbar('Error', errorMessage.value,
               backgroundColor: Colors.red, colorText: Colors.white);
         }
       } else {
         final errorResponse = json.decode(response.body);
-        errorMessage.value = errorResponse['message'] ?? 'Failed to generate bulk report';
+        errorMessage.value =
+            errorResponse['message'] ?? 'Failed to generate bulk report';
         Get.snackbar('Error', errorMessage.value,
             backgroundColor: Colors.red, colorText: Colors.white);
       }
@@ -971,20 +1035,6 @@ class BoxController extends GetxController {
   bool canDeleteBox(BoxModel box) {
     if (!canDeleteBoxes) return false;
     return box.status != 'destroyed';
-  }
-
-  Future<void> loadNextPage() async {
-    if (currentPage.value < totalPages.value) {
-      await getAllBoxes(
-        page: currentPage.value + 1,
-        search: searchQuery.value,
-        status: statusFilter.value,
-        clientId: clientFilter.value > 0 ? clientFilter.value : null,
-        pendingDestruction: pendingDestructionFilter.value,
-        sortBy: sortBy.value,
-        sortOrder: sortOrder.value,
-      );
-    }
   }
 
   Future<void> loadPreviousPage() async {

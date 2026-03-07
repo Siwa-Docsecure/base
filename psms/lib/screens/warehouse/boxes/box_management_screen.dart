@@ -18,6 +18,8 @@ import 'package:psms/models/report_models.dart';
 import 'package:share_plus/share_plus.dart';
 import 'widgets/box_dialog.dart';
 import 'widgets/box_details_dialog.dart';
+import 'widgets/box_import_dialog.dart';
+import 'widgets/box_stats_dialog.dart';
 
 class BoxManagementScreen extends StatefulWidget {
   const BoxManagementScreen({super.key});
@@ -62,7 +64,8 @@ class _BoxManagementScreenState extends State<BoxManagementScreen>
     _scrollController.addListener(() {
       if (_scrollController.position.pixels ==
           _scrollController.position.maxScrollExtent) {
-        if (boxController.currentPage.value < boxController.totalPages.value) {
+        if (!boxController.isLoading.value &&
+            boxController.currentPage.value < boxController.totalPages.value) {
           boxController.loadNextPage();
         }
       }
@@ -126,6 +129,13 @@ class _BoxManagementScreenState extends State<BoxManagementScreen>
         onPressed: () => _showSearchDialog(),
       ),
       IconButton(
+        icon: const Icon(Icons.bar_chart),
+        onPressed: () => showDialog(
+          context: context,
+          builder: (_) => const BoxStatsDialog(),
+        ),
+      ),
+      IconButton(
         icon: Icon(
           _showFilters ? Icons.filter_alt : Icons.filter_alt_outlined,
           color: Color(0xFF2C3E50),
@@ -187,15 +197,99 @@ class _BoxManagementScreenState extends State<BoxManagementScreen>
             ),
           ),
           PopupMenuItem(
-            value: 'settings',
+            value: 'import',
             child: ListTile(
-              leading: Icon(Icons.settings, size: 20, color: Color(0xFF2C3E50)),
-              title: Text('Settings'),
+              leading: Icon(Icons.upload, size: 20, color: Color(0xFF2C3E50)),
+              title: Text('Import from Excel'),
             ),
           ),
         ],
       ),
     ];
+  }
+
+  Widget _buildPaginationFooter() {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        border: Border(bottom: BorderSide(color: Colors.grey.shade200)),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          // Page info
+          Obx(() => Text(
+                'Page ${boxController.currentPage.value} of ${boxController.totalPages.value} (${boxController.totalBoxes.value} total)',
+                style: const TextStyle(fontSize: 14),
+              )),
+          // Limit dropdown and navigation
+          Row(
+            children: [
+              const Text('Rows per page: ', style: TextStyle(fontSize: 14)),
+              DropdownButton<int>(
+                value: boxController.pageSize.value,
+                items: [10, 20, 50, 100].map((size) {
+                  return DropdownMenuItem(
+                    value: size,
+                    child: Text('$size'),
+                  );
+                }).toList(),
+                onChanged: (value) {
+                  if (value != null) {
+                    boxController.pageSize.value = value;
+                    boxController.getAllBoxes(
+                      page: 1,
+                      search: _searchController.text,
+                      status: _selectedStatus == 'all' ? null : _selectedStatus,
+                      clientId: _selectedClientId,
+                      pendingDestruction: _showPendingOnly,
+                      refresh: true,
+                    );
+                  }
+                },
+              ),
+              const SizedBox(width: 16),
+              IconButton(
+                icon: const Icon(Icons.chevron_left),
+                onPressed: boxController.currentPage.value > 1 &&
+                        !boxController.isLoading.value
+                    ? () {
+                        boxController.getAllBoxes(
+                          page: boxController.currentPage.value - 1,
+                          search: _searchController.text,
+                          status:
+                              _selectedStatus == 'all' ? null : _selectedStatus,
+                          clientId: _selectedClientId,
+                          pendingDestruction: _showPendingOnly,
+                          refresh: true,
+                        );
+                      }
+                    : null,
+              ),
+              IconButton(
+                icon: const Icon(Icons.chevron_right),
+                onPressed: boxController.currentPage.value <
+                            boxController.totalPages.value &&
+                        !boxController.isLoading.value
+                    ? () {
+                        boxController.getAllBoxes(
+                          page: boxController.currentPage.value + 1,
+                          search: _searchController.text,
+                          status:
+                              _selectedStatus == 'all' ? null : _selectedStatus,
+                          clientId: _selectedClientId,
+                          pendingDestruction: _showPendingOnly,
+                          refresh: true,
+                        );
+                      }
+                    : null,
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
   }
 
   // ==================== ENHANCED REPORT DIALOG ====================
@@ -862,16 +956,16 @@ class _BoxManagementScreenState extends State<BoxManagementScreen>
           width: MediaQuery.of(Get.context!).size.width * 0.8,
           height: MediaQuery.of(Get.context!).size.height * 0.8,
           decoration: BoxDecoration(
-                  color: Colors.blue[50],
-                  borderRadius: BorderRadius.circular( 4),
-                ),
+            color: Colors.blue[50],
+            borderRadius: BorderRadius.circular(4),
+          ),
           child: Column(
             children: [
               Container(
                 padding: EdgeInsets.all(16),
                 decoration: BoxDecoration(
                   color: Colors.blue[50],
-                  borderRadius: BorderRadius.circular( 4),
+                  borderRadius: BorderRadius.circular(4),
                 ),
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -2215,13 +2309,14 @@ class _BoxManagementScreenState extends State<BoxManagementScreen>
       onTap: (index) {
         switch (index) {
           case 0:
-            _applyFilter(status: 'all');
+            _applyFilter(status: 'all', pendingOnly: false); // ← added false
             break;
           case 1:
-            _applyFilter(status: 'stored');
+            _applyFilter(status: 'stored', pendingOnly: false); // ← added false
             break;
           case 2:
-            _applyFilter(status: 'retrieved');
+            _applyFilter(
+                status: 'retrieved', pendingOnly: false); // ← added false
             break;
           case 3:
             _applyFilter(status: 'all', pendingOnly: true);
@@ -2235,6 +2330,14 @@ class _BoxManagementScreenState extends State<BoxManagementScreen>
     return Column(
       children: [
         if (_showFilters) _buildFilterPanel(),
+        // Pagination footer at the top (only for main tabs)
+        AnimatedBuilder(
+          animation: _tabController,
+          builder: (context, child) {
+            if (_tabController.index == 3) return const SizedBox.shrink();
+            return _buildPaginationFooter();
+          },
+        ),
         Expanded(
           child: TabBarView(
             controller: _tabController,
@@ -3099,8 +3202,8 @@ class _BoxManagementScreenState extends State<BoxManagementScreen>
       case 'print':
         _showReportOptionsDialog();
         break;
-      case 'settings':
-        _showSettings();
+      case 'import':
+        _showImportDialog();
         break;
     }
   }
@@ -3271,9 +3374,22 @@ class _BoxManagementScreenState extends State<BoxManagementScreen>
         backgroundColor: Colors.blue, colorText: Colors.white);
   }
 
-  void _showSettings() {
-    Get.snackbar('Info', 'Settings feature coming soon',
-        backgroundColor: Colors.blue, colorText: Colors.white);
+  void _showImportDialog() {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => Dialog(
+        backgroundColor: Colors.transparent,
+        insetPadding: const EdgeInsets.symmetric(horizontal: 40, vertical: 24),
+        child: Container(
+          width: 900,
+          constraints: BoxConstraints(
+            maxHeight: MediaQuery.of(context).size.height * 0.9,
+          ),
+          child: BoxImportDialog(),
+        ),
+      ),
+    );
   }
 
   void _showAuditLog(BoxModel box) {
