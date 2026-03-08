@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:psms/controllers/auth_Controller.dart';
+import 'package:psms/controllers/auth_controller.dart';
 
 import 'tabs/storage_management_page.dart';
 import 'widgets/audits_settings_widget.dart';

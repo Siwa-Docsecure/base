@@ -1,6 +1,7 @@
 // lib/models/retrieval_model.dart
 
 import 'dart:convert';
+import 'dart:typed_data'; // <-- ADDED for signature decoding
 
 /// Main model for retrieval records
 class RetrievalModel {
@@ -61,50 +62,69 @@ class RetrievalModel {
   
   String? get pdfPath => pdfUrl;
 
-  factory RetrievalModel.fromJson(Map<String, dynamic> json) {
-    return RetrievalModel(
-      retrievalId: json['retrievalId'] ?? json['id'],
-      retrievalNumber: json['retrievalNumber'] ?? '',
-      clientName: json['clientName'] ?? '',
-      clientIdNumber: json['clientIdNumber'] ?? '',
-      clientContact: json['clientContact'] ?? '',
-      itemDescription: json['itemDescription'] ?? '',
-      retrievalReason: json['retrievalReason'] ?? '',
-      status: json['status'] ?? 'pending',
-      requestedBy: json['requestedBy'] ?? '',
-      approvedBy: json['approvedBy'],
-      collectedBy: json['collectedBy'],
-      requestDate: json['requestDate'] != null 
-          ? DateTime.parse(json['requestDate']) 
-          : DateTime.now(),
-      approvalDate: json['approvalDate'] != null 
-          ? DateTime.parse(json['approvalDate']) 
-          : null,
-      collectionDate: json['collectionDate'] != null 
-          ? DateTime.parse(json['collectionDate']) 
-          : null,
-      notes: json['notes'],
-      rejectionReason: json['rejectionReason'],
-      clientSignature: json['clientSignature'],
-      staffSignature: json['staffSignature'],
-      pdfUrl: json['pdfUrl'] ?? json['pdfPath'],
-      items: json['items'] != null
-          ? (json['items'] as List)
-              .map((item) => RetrievalItemModel.fromJson(item))
-              .toList()
-          : null,
-      documents: json['documents'] != null
-          ? (json['documents'] as List)
-              .map((doc) => RetrievalDocumentModel.fromJson(doc))
-              .toList()
-          : null,
-      history: json['history'] != null
-          ? (json['history'] as List)
-              .map((h) => RetrievalHistoryModel.fromJson(h))
-              .toList()
-          : null,
-    );
+  // ========== NEW: Signature helper methods ==========
+  /// Returns decoded client signature bytes for display in Image.memory
+  Uint8List? getClientSignatureBytes() => _decodeBase64Image(clientSignature);
+
+  /// Returns decoded staff signature bytes for display in Image.memory
+  Uint8List? getStaffSignatureBytes() => _decodeBase64Image(staffSignature);
+
+  /// Decodes a base64 string, removing any data URI prefix if present.
+  Uint8List? _decodeBase64Image(String? base64String) {
+    if (base64String == null || base64String.isEmpty) return null;
+    try {
+      // Remove data URI prefix (e.g., "data:image/png;base64,")
+      String clean = base64String.contains('base64,')
+          ? base64String.split('base64,').last
+          : base64String;
+      clean = clean.trim();
+      return base64Decode(clean);
+    } catch (e) {
+      print('Error decoding signature: $e');
+      return null;
+    }
   }
+  // ===================================================
+
+  factory RetrievalModel.fromJson(Map<String, dynamic> json) {
+  // Extract nested client data if present
+  final clientData = json['client'] as Map<String, dynamic>?;
+  final boxData = json['box'] as Map<String, dynamic>?;
+
+  return RetrievalModel(
+    retrievalId: json['retrievalId'] ?? json['id'],
+    retrievalNumber: json['retrievalNumber'] ?? '',
+    clientName: clientData?['clientName'] ?? json['clientName'] ?? '',
+    // Map backend's clientCode to clientIdNumber, and contactPerson to clientContact
+    clientIdNumber: clientData?['clientCode'] ?? json['clientIdNumber'] ?? '',
+    clientContact: clientData?['contactPerson'] ?? json['clientContact'] ?? '',
+    itemDescription: json['itemDescription'] ?? '',
+    retrievalReason: json['reason'] ?? json['retrievalReason'] ?? '',
+    status: json['status'] ?? 'pending',
+    requestedBy: json['retrievedBy'] ?? json['requestedBy'] ?? '',
+    approvedBy: json['approvedBy'],
+    collectedBy: json['collectedBy'],
+    requestDate: json['retrievalDate'] != null
+        ? DateTime.parse(json['retrievalDate'])
+        : (json['requestDate'] != null ? DateTime.parse(json['requestDate']) : DateTime.now()),
+    approvalDate: json['approvalDate'] != null ? DateTime.parse(json['approvalDate']) : null,
+    collectionDate: json['collectionDate'] != null ? DateTime.parse(json['collectionDate']) : null,
+    notes: json['notes'] ?? json['reason'],
+    rejectionReason: json['rejectionReason'],
+    clientSignature: json['clientSignature'],
+    staffSignature: json['staffSignature'],
+    pdfUrl: json['pdfPath'] ?? json['pdfUrl'],
+    items: json['items'] != null
+        ? (json['items'] as List).map((i) => RetrievalItemModel.fromJson(i)).toList()
+        : null,
+    documents: json['documents'] != null
+        ? (json['documents'] as List).map((d) => RetrievalDocumentModel.fromJson(d)).toList()
+        : null,
+    history: json['history'] != null
+        ? (json['history'] as List).map((h) => RetrievalHistoryModel.fromJson(h)).toList()
+        : null,
+  );
+}
 
   Map<String, dynamic> toJson() {
     return {
@@ -187,50 +207,31 @@ class RetrievalModel {
 
 /// Model for creating a new retrieval request
 class CreateRetrievalRequest {
-  final String clientName;
-  final String clientIdNumber;
-  final String clientContact;
-  final String itemDescription;
-  final String retrievalReason;
-  final String? notes;
-  final List<RetrievalItemRequest>? items;
+  final int clientId;
+  final int boxId;
+  final String retrievalDate; // Format: YYYY-MM-DD
+  final String? retrievedBy;
+  final String? reason;
+  final String? staffSignature;
 
   CreateRetrievalRequest({
-    required this.clientName,
-    required this.clientIdNumber,
-    required this.clientContact,
-    required this.itemDescription,
-    required this.retrievalReason,
-    this.notes,
-    this.items,
+    required this.clientId,
+    required this.boxId,
+    required this.retrievalDate,
+    this.retrievedBy,
+    this.reason,
+    this.staffSignature,
   });
 
   Map<String, dynamic> toJson() {
     return {
-      'clientName': clientName,
-      'clientIdNumber': clientIdNumber,
-      'clientContact': clientContact,
-      'itemDescription': itemDescription,
-      'retrievalReason': retrievalReason,
-      if (notes != null) 'notes': notes,
-      if (items != null) 'items': items!.map((i) => i.toJson()).toList(),
+      'clientId': clientId,
+      'boxId': boxId,
+      'retrievalDate': retrievalDate,
+      if (retrievedBy != null) 'retrievedBy': retrievedBy,
+      if (reason != null) 'reason': reason,
+      if (staffSignature != null) 'staffSignature': staffSignature,
     };
-  }
-
-  factory CreateRetrievalRequest.fromJson(Map<String, dynamic> json) {
-    return CreateRetrievalRequest(
-      clientName: json['clientName'] ?? '',
-      clientIdNumber: json['clientIdNumber'] ?? '',
-      clientContact: json['clientContact'] ?? '',
-      itemDescription: json['itemDescription'] ?? '',
-      retrievalReason: json['retrievalReason'] ?? '',
-      notes: json['notes'],
-      items: json['items'] != null
-          ? (json['items'] as List)
-              .map((item) => RetrievalItemRequest.fromJson(item))
-              .toList()
-          : null,
-    );
   }
 }
 

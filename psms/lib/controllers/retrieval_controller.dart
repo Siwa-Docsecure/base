@@ -5,6 +5,7 @@ import 'package:get/get.dart';
 import 'package:http/http.dart' as http;
 import 'package:psms/constants/api_constants.dart';
 import 'package:psms/controllers/auth_controller.dart';
+import 'package:psms/models/box_model.dart';
 import 'package:psms/models/client_model.dart';
 import 'package:psms/models/retrieval_model.dart';
 
@@ -28,6 +29,9 @@ class RetrievalController extends GetxController {
   final RxInt currentPage = 1.obs;
   final RxInt totalPages = 1.obs;
   final RxInt totalRetrievals = 0.obs;
+
+  final RxList<BoxModel> clientStoredBoxes = <BoxModel>[].obs;
+  final RxBool loadingBoxes = false.obs;
 
   // Filter variables
   final RxString searchQuery = ''.obs;
@@ -155,8 +159,7 @@ class RetrievalController extends GetxController {
           final errorData = json.decode(response.body);
           return {
             'success': false,
-            'message':
-                errorData['message'] ??
+            'message': errorData['message'] ??
                 'Request failed with status ${response.statusCode}',
           };
         } catch (_) {
@@ -251,6 +254,44 @@ class RetrievalController extends GetxController {
     } catch (e) {
       print('Error fetching clients: $e');
       errorMessage.value = 'Failed to load clients: $e';
+    }
+  }
+
+  Future<void> getClientStoredBoxes(int clientId) async {
+    try {
+      loadingBoxes.value = true;
+      clientStoredBoxes.clear();
+
+      final uri = Uri.parse(
+        '${ApiConstants.baseUrl}${ApiConstants.boxes}',
+      ).replace(queryParameters: {
+        'clientId': clientId.toString(),
+        'status': 'stored',
+        'limit': '1000',
+      });
+
+      final result = await _makeApiCall(
+        apiCall: () => http.get(uri, headers: getAuthHeaders()),
+        errorMessagePrefix: 'Failed to fetch boxes',
+      );
+
+      if (result['success'] && result['data'] != null) {
+        final data = result['data'];
+        final List<BoxModel> boxes = (data['boxes'] as List)
+            .map((boxJson) => BoxModel.fromJson(boxJson))
+            .toList();
+        clientStoredBoxes.value = boxes;
+      } else {
+        errorMessage.value = result['message'];
+        Get.snackbar('Error', result['message'],
+            backgroundColor: Colors.red, colorText: Colors.white);
+      }
+    } catch (e) {
+      errorMessage.value = 'Connection error: $e';
+      Get.snackbar('Error', 'Connection error: $e',
+          backgroundColor: Colors.red, colorText: Colors.white);
+    } finally {
+      loadingBoxes.value = false;
     }
   }
 
@@ -774,7 +815,7 @@ class RetrievalController extends GetxController {
           colorText: Colors.white,
           duration: const Duration(seconds: 4),
         );
-        
+
         // Refresh data
         await getRetrievalById(retrievalId);
         await getAllRetrievals();
@@ -783,7 +824,7 @@ class RetrievalController extends GetxController {
         } else {
           await getPendingRetrievals();
         }
-        
+
         return true;
       } else {
         errorMessage.value = result['message'];

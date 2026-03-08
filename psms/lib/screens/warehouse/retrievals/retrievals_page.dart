@@ -1,10 +1,14 @@
 // lib/screens/retrievals_page.dart
 
 import 'dart:convert';
+import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:psms/controllers/auth_controller.dart';
 import 'package:psms/controllers/retrieval_controller.dart';
+import 'package:psms/models/box_model.dart';
+import 'package:psms/models/client_model.dart';
 import 'package:psms/models/retrieval_model.dart';
 import 'package:signature/signature.dart';
 import 'package:intl/intl.dart';
@@ -46,9 +50,15 @@ class _RetrievalsPageState extends State<RetrievalsPage> {
         child: Container(
           constraints: const BoxConstraints(maxWidth: 900, maxHeight: 800),
           decoration: BoxDecoration(
-            color: Colors.black.withOpacity(0.2),
+            color: Colors.white, // solid white background
             borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: Colors.white.withOpacity(0.3)),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.1),
+                blurRadius: 10,
+                offset: const Offset(0, 4),
+              ),
+            ],
           ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -57,13 +67,13 @@ class _RetrievalsPageState extends State<RetrievalsPage> {
               Container(
                 padding: const EdgeInsets.all(24),
                 decoration: BoxDecoration(
-                  color: _getStatusColor(retrieval.status).withOpacity(0.3),
+                  color: _getStatusColor(retrieval.status).withOpacity(0.1),
                   borderRadius: const BorderRadius.only(
                     topLeft: Radius.circular(16),
                     topRight: Radius.circular(16),
                   ),
                   border: Border(
-                    bottom: BorderSide(color: Colors.white.withOpacity(0.2)),
+                    bottom: BorderSide(color: Colors.grey.shade300),
                   ),
                 ),
                 child: Row(
@@ -71,13 +81,17 @@ class _RetrievalsPageState extends State<RetrievalsPage> {
                     Container(
                       padding: const EdgeInsets.all(12),
                       decoration: BoxDecoration(
-                        color: _getStatusColor(retrieval.status).withOpacity(0.3),
+                        color:
+                            _getStatusColor(retrieval.status).withOpacity(0.2),
                         borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: Colors.white.withOpacity(0.3)),
+                        border: Border.all(
+                          color: _getStatusColor(retrieval.status)
+                              .withOpacity(0.5),
+                        ),
                       ),
                       child: Icon(
                         Icons.inventory_2,
-                        color: Colors.white,
+                        color: _getStatusColor(retrieval.status),
                         size: 24,
                       ),
                     ),
@@ -91,14 +105,14 @@ class _RetrievalsPageState extends State<RetrievalsPage> {
                             style: TextStyle(
                               fontSize: 20,
                               fontWeight: FontWeight.bold,
-                              color: Colors.white,
+                              color: Colors.black87,
                             ),
                           ),
                           const SizedBox(height: 4),
                           Text(
                             retrieval.retrievalNumber,
                             style: TextStyle(
-                              color: Colors.white.withOpacity(0.8),
+                              color: Colors.grey.shade600,
                               fontSize: 14,
                             ),
                           ),
@@ -107,7 +121,7 @@ class _RetrievalsPageState extends State<RetrievalsPage> {
                     ),
                     _buildStatusBadge(retrieval.status),
                     IconButton(
-                      icon: const Icon(Icons.close, color: Colors.white),
+                      icon: const Icon(Icons.close, color: Colors.black54),
                       onPressed: () => Navigator.pop(context),
                     ),
                   ],
@@ -127,36 +141,54 @@ class _RetrievalsPageState extends State<RetrievalsPage> {
                       _buildInfoRow('Name', retrieval.clientName),
                       _buildInfoRow('ID Number', retrieval.clientIdNumber),
                       _buildInfoRow('Contact', retrieval.clientContact),
-                      
+
                       const SizedBox(height: 24),
-                      Divider(color: Colors.white.withOpacity(0.2)),
+                      Divider(color: Colors.grey.shade300),
                       const SizedBox(height: 24),
 
                       // Retrieval Information
                       _buildSectionTitle('Retrieval Information'),
                       const SizedBox(height: 12),
-                      _buildInfoRow('Item Description', retrieval.itemDescription),
+                      _buildInfoRow(
+                          'Item Description', retrieval.itemDescription),
                       _buildInfoRow('Reason', retrieval.retrievalReason),
-                      _buildInfoRow('Request Date', DateFormat('MMM dd, yyyy HH:mm').format(retrieval.requestDate)),
+                      _buildInfoRow(
+                        'Request Date',
+                        DateFormat('MMM dd, yyyy HH:mm')
+                            .format(retrieval.requestDate),
+                      ),
                       _buildInfoRow('Requested By', retrieval.requestedBy),
-                      
+
                       if (retrieval.approvedBy != null)
                         _buildInfoRow('Approved By', retrieval.approvedBy!),
                       if (retrieval.approvalDate != null)
-                        _buildInfoRow('Approval Date', DateFormat('MMM dd, yyyy HH:mm').format(retrieval.approvalDate!)),
+                        _buildInfoRow(
+                          'Approval Date',
+                          DateFormat('MMM dd, yyyy HH:mm')
+                              .format(retrieval.approvalDate!),
+                        ),
                       if (retrieval.collectedBy != null)
                         _buildInfoRow('Collected By', retrieval.collectedBy!),
                       if (retrieval.collectionDate != null)
-                        _buildInfoRow('Collection Date', DateFormat('MMM dd, yyyy HH:mm').format(retrieval.collectionDate!)),
-                      if (retrieval.notes != null && retrieval.notes!.isNotEmpty)
+                        _buildInfoRow(
+                          'Collection Date',
+                          DateFormat('MMM dd, yyyy HH:mm')
+                              .format(retrieval.collectionDate!),
+                        ),
+                      if (retrieval.notes != null &&
+                          retrieval.notes!.isNotEmpty)
                         _buildInfoRow('Notes', retrieval.notes!),
-                      if (retrieval.rejectionReason != null && retrieval.rejectionReason!.isNotEmpty)
-                        _buildInfoRow('Rejection Reason', retrieval.rejectionReason!, isError: true),
+                      if (retrieval.rejectionReason != null &&
+                          retrieval.rejectionReason!.isNotEmpty)
+                        _buildInfoRow(
+                            'Rejection Reason', retrieval.rejectionReason!,
+                            isError: true),
 
                       // Items
-                      if (retrieval.items != null && retrieval.items!.isNotEmpty) ...[
+                      if (retrieval.items != null &&
+                          retrieval.items!.isNotEmpty) ...[
                         const SizedBox(height: 24),
-                        Divider(color: Colors.white.withOpacity(0.2)),
+                        Divider(color: Colors.grey.shade300),
                         const SizedBox(height: 24),
                         _buildSectionTitle('Items'),
                         const SizedBox(height: 12),
@@ -164,38 +196,51 @@ class _RetrievalsPageState extends State<RetrievalsPage> {
                       ],
 
                       // Documents
-                      if (retrieval.documents != null && retrieval.documents!.isNotEmpty) ...[
+                      if (retrieval.documents != null &&
+                          retrieval.documents!.isNotEmpty) ...[
                         const SizedBox(height: 24),
-                        Divider(color: Colors.white.withOpacity(0.2)),
+                        Divider(color: Colors.grey.shade300),
                         const SizedBox(height: 24),
                         _buildSectionTitle('Documents'),
                         const SizedBox(height: 12),
-                        ...retrieval.documents!.map((doc) => _buildDocumentCard(doc)),
+                        ...retrieval.documents!
+                            .map((doc) => _buildDocumentCard(doc)),
                       ],
 
                       // Signatures
-                      if (retrieval.hasClientSignature || retrieval.hasStaffSignature) ...[
+                      if (retrieval.hasClientSignature ||
+                          retrieval.hasStaffSignature) ...[
                         const SizedBox(height: 24),
-                        Divider(color: Colors.white.withOpacity(0.2)),
+                        Divider(color: Colors.grey.shade300),
                         const SizedBox(height: 24),
                         _buildSectionTitle('Signatures'),
                         const SizedBox(height: 12),
                         Row(
                           children: [
                             if (retrieval.hasClientSignature)
-                              Expanded(child: _buildSignatureBox('Client Signature', true)),
-                            if (retrieval.hasClientSignature && retrieval.hasStaffSignature)
+                              Expanded(
+                                child: _buildSignatureDisplay(
+                                  title: 'Client Signature',
+                                  signatureBytes:
+                                      retrieval.getClientSignatureBytes(),
+                                ),
+                              ),
+                            if (retrieval.hasClientSignature &&
+                                retrieval.hasStaffSignature)
                               const SizedBox(width: 16),
                             if (retrieval.hasStaffSignature)
-                              Expanded(child: _buildSignatureBox('Staff Signature', true)),
+                              Expanded(
+                                  child: _buildSignatureBox(
+                                      'Staff Signature', true)),
                           ],
                         ),
                       ],
 
                       // Add signature option if no signatures
-                      if (!retrieval.hasClientSignature && !retrieval.hasStaffSignature) ...[
+                      if (!retrieval.hasClientSignature &&
+                          !retrieval.hasStaffSignature) ...[
                         const SizedBox(height: 24),
-                        Divider(color: Colors.white.withOpacity(0.2)),
+                        Divider(color: Colors.grey.shade300),
                         const SizedBox(height: 24),
                         _buildSectionTitle('Signatures'),
                         const SizedBox(height: 12),
@@ -207,19 +252,22 @@ class _RetrievalsPageState extends State<RetrievalsPage> {
                           icon: const Icon(Icons.draw),
                           label: const Text('Add Signatures'),
                           style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.blue.withOpacity(0.7),
+                            backgroundColor: Colors.blue,
+                            foregroundColor: Colors.white,
                           ),
                         ),
                       ],
 
                       // History
-                      if (retrieval.history != null && retrieval.history!.isNotEmpty) ...[
+                      if (retrieval.history != null &&
+                          retrieval.history!.isNotEmpty) ...[
                         const SizedBox(height: 24),
-                        Divider(color: Colors.white.withOpacity(0.2)),
+                        Divider(color: Colors.grey.shade300),
                         const SizedBox(height: 24),
                         _buildSectionTitle('History'),
                         const SizedBox(height: 12),
-                        ...retrieval.history!.map((history) => _buildHistoryCard(history)),
+                        ...retrieval.history!
+                            .map((history) => _buildHistoryCard(history)),
                       ],
                     ],
                   ),
@@ -230,19 +278,20 @@ class _RetrievalsPageState extends State<RetrievalsPage> {
               Container(
                 padding: const EdgeInsets.all(24),
                 decoration: BoxDecoration(
-                  color: Colors.black.withOpacity(0.3),
+                  color: Colors.grey.shade50,
                   borderRadius: const BorderRadius.only(
                     bottomLeft: Radius.circular(16),
                     bottomRight: Radius.circular(16),
                   ),
                   border: Border(
-                    top: BorderSide(color: Colors.white.withOpacity(0.2)),
+                    top: BorderSide(color: Colors.grey.shade300),
                   ),
                 ),
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.end,
                   children: [
-                    if (retrieval.pdfPath != null && retrieval.pdfPath!.isNotEmpty)
+                    if (retrieval.pdfPath != null &&
+                        retrieval.pdfPath!.isNotEmpty)
                       OutlinedButton.icon(
                         onPressed: () {
                           Get.snackbar(
@@ -251,10 +300,11 @@ class _RetrievalsPageState extends State<RetrievalsPage> {
                             snackPosition: SnackPosition.BOTTOM,
                           );
                         },
-                        icon: const Icon(Icons.download, color: Colors.white),
-                        label: const Text('Download PDF', style: TextStyle(color: Colors.white)),
+                        icon: const Icon(Icons.download, color: Colors.blue),
+                        label: const Text('Download PDF',
+                            style: TextStyle(color: Colors.blue)),
                         style: OutlinedButton.styleFrom(
-                          side: BorderSide(color: Colors.white.withOpacity(0.5)),
+                          side: const BorderSide(color: Colors.blue),
                         ),
                       ),
                     const SizedBox(width: 12),
@@ -265,7 +315,8 @@ class _RetrievalsPageState extends State<RetrievalsPage> {
                           _showDeleteDialog(retrieval);
                         },
                         icon: const Icon(Icons.delete, color: Colors.red),
-                        label: const Text('Delete', style: TextStyle(color: Colors.red)),
+                        label: const Text('Delete',
+                            style: TextStyle(color: Colors.red)),
                         style: OutlinedButton.styleFrom(
                           side: const BorderSide(color: Colors.red),
                         ),
@@ -274,9 +325,197 @@ class _RetrievalsPageState extends State<RetrievalsPage> {
                     ElevatedButton(
                       onPressed: () => Navigator.pop(context),
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.white.withOpacity(0.2),
+                        backgroundColor: Colors.grey.shade200,
+                        foregroundColor: Colors.black87,
                       ),
-                      child: const Text('Close', style: TextStyle(color: Colors.white)),
+                      child: const Text('Close'),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSignatureDisplay({
+    required String title,
+    required Uint8List? signatureBytes,
+  }) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        border: Border.all(color: Colors.grey.shade300),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            title,
+            style: const TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w600,
+              color: Color(0xFF2C3E50),
+            ),
+          ),
+          const SizedBox(height: 8),
+          if (signatureBytes != null)
+            Container(
+              height: 100,
+              decoration: BoxDecoration(
+                color: Colors.grey.shade50,
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(8),
+                child: Image.memory(
+                  signatureBytes,
+                  fit: BoxFit.contain,
+                  errorBuilder: (_, __, ___) => const Center(
+                    child: Text('Invalid signature'),
+                  ),
+                ),
+              ),
+            )
+          else
+            Container(
+              height: 100,
+              decoration: BoxDecoration(
+                color: Colors.grey.shade50,
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: const Center(
+                child:
+                    Text('No signature', style: TextStyle(color: Colors.grey)),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Future<String?> _captureSignature(BuildContext context, String title) async {
+    final controller = SignatureController(
+      penStrokeWidth: 3,
+      penColor: Colors.black,
+      exportBackgroundColor: Colors.white,
+    );
+
+    return showDialog<String>(
+      context: context,
+      builder: (context) => Dialog(
+        backgroundColor: Colors.transparent,
+        child: Container(
+          constraints: const BoxConstraints(maxWidth: 500),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(20),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Header
+              Container(
+                padding: const EdgeInsets.all(20),
+                decoration: const BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [Color(0xFF3498DB), Color(0xFF2980B9)],
+                  ),
+                  borderRadius: BorderRadius.only(
+                    topLeft: Radius.circular(20),
+                    topRight: Radius.circular(20),
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(Icons.draw, color: Colors.white),
+                    const SizedBox(width: 12),
+                    Text(
+                      title,
+                      style: const TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              // Signature pad
+              Padding(
+                padding: const EdgeInsets.all(24),
+                child: Column(
+                  children: [
+                    Container(
+                      height: 250,
+                      decoration: BoxDecoration(
+                        border: Border.all(color: Colors.grey[300]!),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(12),
+                        child: Signature(
+                          controller: controller,
+                          backgroundColor: Colors.white,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 24),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        OutlinedButton.icon(
+                          onPressed: controller.clear,
+                          icon: const Icon(Icons.clear, size: 18),
+                          label: const Text('Clear'),
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: Colors.grey[700],
+                            side: BorderSide(color: Colors.grey[300]!),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 24,
+                              vertical: 12,
+                            ),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 16),
+                        ElevatedButton.icon(
+                          onPressed: () async {
+                            if (controller.isEmpty) {
+                              Get.snackbar(
+                                'Error',
+                                'Please provide a signature',
+                                backgroundColor: Colors.red,
+                                colorText: Colors.white,
+                              );
+                              return;
+                            }
+                            final pngBytes = await controller.toPngBytes();
+                            if (pngBytes != null) {
+                              final base64 = base64Encode(pngBytes);
+                              Navigator.pop(context, base64);
+                            }
+                          },
+                          icon: const Icon(Icons.check, size: 18),
+                          label: const Text('Save'),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFF3498DB),
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 24,
+                              vertical: 12,
+                            ),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
                   ],
                 ),
@@ -294,7 +533,7 @@ class _RetrievalsPageState extends State<RetrievalsPage> {
       penColor: Colors.black,
       exportBackgroundColor: Colors.white,
     );
-    
+
     final SignatureController staffSignatureController = SignatureController(
       penStrokeWidth: 3,
       penColor: Colors.black,
@@ -308,9 +547,15 @@ class _RetrievalsPageState extends State<RetrievalsPage> {
         child: Container(
           constraints: const BoxConstraints(maxWidth: 800),
           decoration: BoxDecoration(
-            color: Colors.black.withOpacity(0.2),
+            color: Colors.white,
             borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: Colors.white.withOpacity(0.3)),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.1),
+                blurRadius: 10,
+                offset: const Offset(0, 4),
+              ),
+            ],
           ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -319,13 +564,13 @@ class _RetrievalsPageState extends State<RetrievalsPage> {
               Container(
                 padding: const EdgeInsets.all(24),
                 decoration: BoxDecoration(
-                  color: Colors.blue.withOpacity(0.3),
+                  color: Colors.blue.shade50,
                   borderRadius: const BorderRadius.only(
                     topLeft: Radius.circular(16),
                     topRight: Radius.circular(16),
                   ),
                   border: Border(
-                    bottom: BorderSide(color: Colors.white.withOpacity(0.2)),
+                    bottom: BorderSide(color: Colors.grey.shade300),
                   ),
                 ),
                 child: Row(
@@ -333,11 +578,12 @@ class _RetrievalsPageState extends State<RetrievalsPage> {
                     Container(
                       padding: const EdgeInsets.all(12),
                       decoration: BoxDecoration(
-                        color: Colors.blue.withOpacity(0.3),
+                        color: Colors.blue.shade100,
                         borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: Colors.white.withOpacity(0.3)),
+                        border: Border.all(color: Colors.blue.shade300),
                       ),
-                      child: const Icon(Icons.draw, color: Colors.white, size: 24),
+                      child:
+                          const Icon(Icons.draw, color: Colors.blue, size: 24),
                     ),
                     const SizedBox(width: 16),
                     const Expanded(
@@ -346,12 +592,12 @@ class _RetrievalsPageState extends State<RetrievalsPage> {
                         style: TextStyle(
                           fontSize: 20,
                           fontWeight: FontWeight.bold,
-                          color: Colors.white,
+                          color: Colors.black87,
                         ),
                       ),
                     ),
                     IconButton(
-                      icon: const Icon(Icons.close, color: Colors.white),
+                      icon: const Icon(Icons.close, color: Colors.black54),
                       onPressed: () => Navigator.pop(context),
                     ),
                   ],
@@ -365,16 +611,12 @@ class _RetrievalsPageState extends State<RetrievalsPage> {
                   children: [
                     // Client Signature
                     _buildSignaturePad(
-                      'Client Signature',
-                      clientSignatureController,
-                    ),
+                        'Client Signature', clientSignatureController),
                     const SizedBox(height: 24),
-                    
+
                     // Staff Signature
                     _buildSignaturePad(
-                      'Staff Signature',
-                      staffSignatureController,
-                    ),
+                        'Staff Signature', staffSignatureController),
                   ],
                 ),
               ),
@@ -383,13 +625,13 @@ class _RetrievalsPageState extends State<RetrievalsPage> {
               Container(
                 padding: const EdgeInsets.all(24),
                 decoration: BoxDecoration(
-                  color: Colors.black.withOpacity(0.3),
+                  color: Colors.grey.shade50,
                   borderRadius: const BorderRadius.only(
                     bottomLeft: Radius.circular(16),
                     bottomRight: Radius.circular(16),
                   ),
                   border: Border(
-                    top: BorderSide(color: Colors.white.withOpacity(0.2)),
+                    top: BorderSide(color: Colors.grey.shade300),
                   ),
                 ),
                 child: Row(
@@ -398,16 +640,19 @@ class _RetrievalsPageState extends State<RetrievalsPage> {
                     OutlinedButton(
                       onPressed: () => Navigator.pop(context),
                       style: OutlinedButton.styleFrom(
-                        side: BorderSide(color: Colors.white.withOpacity(0.5)),
+                        side: BorderSide(color: Colors.grey.shade400),
+                        foregroundColor: Colors.black87,
                       ),
-                      child: const Text('Cancel', style: TextStyle(color: Colors.white)),
+                      child: const Text('Cancel'),
                     ),
                     const SizedBox(width: 12),
                     ElevatedButton(
                       onPressed: () async {
                         // Get signature data
-                        final clientSignature = await clientSignatureController.toPngBytes();
-                        final staffSignature = await staffSignatureController.toPngBytes();
+                        final clientSignature =
+                            await clientSignatureController.toPngBytes();
+                        final staffSignature =
+                            await staffSignatureController.toPngBytes();
 
                         if (clientSignature == null && staffSignature == null) {
                           Get.snackbar(
@@ -425,11 +670,13 @@ class _RetrievalsPageState extends State<RetrievalsPage> {
                         String? staffSignatureBase64;
 
                         if (clientSignature != null) {
-                          clientSignatureBase64 = 'data:image/png;base64,${base64Encode(clientSignature)}';
+                          clientSignatureBase64 =
+                              'data:image/png;base64,${base64Encode(clientSignature)}';
                         }
 
                         if (staffSignature != null) {
-                          staffSignatureBase64 = 'data:image/png;base64,${base64Encode(staffSignature)}';
+                          staffSignatureBase64 =
+                              'data:image/png;base64,${base64Encode(staffSignature)}';
                         }
 
                         if (retrieval.retrievalId != null) {
@@ -446,7 +693,8 @@ class _RetrievalsPageState extends State<RetrievalsPage> {
                         }
                       },
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.green.withOpacity(0.7),
+                        backgroundColor: Colors.green,
+                        foregroundColor: Colors.white,
                       ),
                       child: const Text('Save Signatures'),
                     ),
@@ -472,13 +720,13 @@ class _RetrievalsPageState extends State<RetrievalsPage> {
               style: const TextStyle(
                 fontWeight: FontWeight.bold,
                 fontSize: 14,
-                color: Colors.white,
+                color: Colors.black,
               ),
             ),
             TextButton.icon(
               onPressed: () => controller.clear(),
-              icon: const Icon(Icons.clear, size: 16, color: Colors.white),
-              label: const Text('Clear', style: TextStyle(color: Colors.white)),
+              icon: const Icon(Icons.clear, size: 16, color: Colors.black),
+              label: const Text('Clear', style: TextStyle(color: Colors.black)),
             ),
           ],
         ),
@@ -505,7 +753,7 @@ class _RetrievalsPageState extends State<RetrievalsPage> {
       style: const TextStyle(
         fontSize: 16,
         fontWeight: FontWeight.bold,
-        color: Colors.white,
+        color: Colors.black,
       ),
     );
   }
@@ -525,7 +773,7 @@ class _RetrievalsPageState extends State<RetrievalsPage> {
             style: const TextStyle(
               fontWeight: FontWeight.w600,
               fontSize: 13,
-              color: Colors.white,
+              color: Colors.black,
             ),
           ),
           const SizedBox(height: 8),
@@ -539,35 +787,37 @@ class _RetrievalsPageState extends State<RetrievalsPage> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        backgroundColor: Colors.black.withOpacity(0.2),
+        backgroundColor: Colors.white,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        title: const Text('Delete Retrieval', style: TextStyle(color: Colors.white)),
+        title: const Text('Delete Retrieval',
+            style: TextStyle(color: Colors.black87)),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const Text(
               'Are you sure you want to delete this retrieval?',
-              style: TextStyle(color: Colors.white),
+              style: TextStyle(color: Colors.black87),
             ),
             const SizedBox(height: 16),
             Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.1),
+                color: Colors.grey.shade100,
                 borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: Colors.white.withOpacity(0.3)),
+                border: Border.all(color: Colors.grey.shade300),
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
                     'Retrieval: ${retrieval.retrievalNumber}',
-                    style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white),
+                    style: const TextStyle(
+                        fontWeight: FontWeight.bold, color: Colors.black87),
                   ),
                   Text(
                     'Client: ${retrieval.clientName}',
-                    style: const TextStyle(color: Colors.white),
+                    style: const TextStyle(color: Colors.black54),
                   ),
                 ],
               ),
@@ -582,12 +832,14 @@ class _RetrievalsPageState extends State<RetrievalsPage> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel', style: TextStyle(color: Colors.white)),
+            style: TextButton.styleFrom(foregroundColor: Colors.black54),
+            child: const Text('Cancel'),
           ),
           ElevatedButton(
             onPressed: () async {
               if (retrieval.retrievalId != null) {
-                final success = await controller.deleteRetrieval(retrieval.retrievalId!);
+                final success =
+                    await controller.deleteRetrieval(retrieval.retrievalId!);
                 Navigator.pop(context);
                 if (success) {
                   _loadData();
@@ -617,7 +869,7 @@ class _RetrievalsPageState extends State<RetrievalsPage> {
               label,
               style: TextStyle(
                 fontWeight: FontWeight.w600,
-                color: Colors.white.withOpacity(0.7),
+                color: Colors.grey.shade700,
                 fontSize: 13,
               ),
             ),
@@ -626,7 +878,7 @@ class _RetrievalsPageState extends State<RetrievalsPage> {
             child: Text(
               value,
               style: TextStyle(
-                color: isError ? Colors.red : Colors.white,
+                color: isError ? Colors.red : Colors.black87,
                 fontSize: 14,
               ),
             ),
@@ -647,7 +899,8 @@ class _RetrievalsPageState extends State<RetrievalsPage> {
       ),
       child: Row(
         children: [
-          Icon(Icons.inventory_2, color: Colors.white.withOpacity(0.7), size: 20),
+          Icon(Icons.inventory_2,
+              color: Colors.white.withOpacity(0.7), size: 20),
           const SizedBox(width: 12),
           Expanded(
             child: Column(
@@ -655,11 +908,15 @@ class _RetrievalsPageState extends State<RetrievalsPage> {
               children: [
                 Text(
                   item.itemName,
-                  style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14, color: Colors.white),
+                  style: const TextStyle(
+                      fontWeight: FontWeight.w600,
+                      fontSize: 14,
+                      color: Colors.white),
                 ),
                 Text(
                   '${item.itemCategory} • Qty: ${item.quantity}',
-                  style: TextStyle(color: Colors.white.withOpacity(0.7), fontSize: 12),
+                  style: TextStyle(
+                      color: Colors.white.withOpacity(0.7), fontSize: 12),
                 ),
               ],
             ),
@@ -693,7 +950,8 @@ class _RetrievalsPageState extends State<RetrievalsPage> {
       ),
       child: Row(
         children: [
-          Icon(Icons.insert_drive_file, color: Colors.white.withOpacity(0.7), size: 20),
+          Icon(Icons.insert_drive_file,
+              color: Colors.white.withOpacity(0.7), size: 20),
           const SizedBox(width: 12),
           Expanded(
             child: Column(
@@ -701,11 +959,15 @@ class _RetrievalsPageState extends State<RetrievalsPage> {
               children: [
                 Text(
                   doc.documentName,
-                  style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14, color: Colors.white),
+                  style: const TextStyle(
+                      fontWeight: FontWeight.w600,
+                      fontSize: 14,
+                      color: Colors.white),
                 ),
                 Text(
                   '${doc.documentType} • ${DateFormat('MMM dd, yyyy').format(doc.uploadedDate)}',
-                  style: TextStyle(color: Colors.white.withOpacity(0.7), fontSize: 12),
+                  style: TextStyle(
+                      color: Colors.white.withOpacity(0.7), fontSize: 12),
                 ),
               ],
             ),
@@ -742,9 +1004,11 @@ class _RetrievalsPageState extends State<RetrievalsPage> {
             decoration: BoxDecoration(
               color: _getActionColor(history.action).withOpacity(0.2),
               borderRadius: BorderRadius.circular(6),
-              border: Border.all(color: _getActionColor(history.action).withOpacity(0.3)),
+              border: Border.all(
+                  color: _getActionColor(history.action).withOpacity(0.3)),
             ),
-            child: Icon(_getActionIcon(history.action), color: _getActionColor(history.action), size: 16),
+            child: Icon(_getActionIcon(history.action),
+                color: _getActionColor(history.action), size: 16),
           ),
           const SizedBox(width: 12),
           Expanded(
@@ -753,7 +1017,10 @@ class _RetrievalsPageState extends State<RetrievalsPage> {
               children: [
                 Text(
                   history.action.toUpperCase(),
-                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.white),
+                  style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 13,
+                      color: Colors.white),
                 ),
                 const SizedBox(height: 4),
                 Text(
@@ -762,13 +1029,18 @@ class _RetrievalsPageState extends State<RetrievalsPage> {
                 ),
                 Text(
                   DateFormat('MMM dd, yyyy HH:mm').format(history.timestamp),
-                  style: TextStyle(color: Colors.white.withOpacity(0.7), fontSize: 11),
+                  style: TextStyle(
+                      color: Colors.white.withOpacity(0.7), fontSize: 11),
                 ),
-                if (history.comments != null && history.comments!.isNotEmpty) ...[
+                if (history.comments != null &&
+                    history.comments!.isNotEmpty) ...[
                   const SizedBox(height: 6),
                   Text(
                     history.comments!,
-                    style: const TextStyle(fontSize: 12, fontStyle: FontStyle.italic, color: Colors.white),
+                    style: const TextStyle(
+                        fontSize: 12,
+                        fontStyle: FontStyle.italic,
+                        color: Colors.white),
                   ),
                 ],
               ],
@@ -821,14 +1093,14 @@ class _RetrievalsPageState extends State<RetrievalsPage> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
       decoration: BoxDecoration(
-        color: _getStatusColor(status).withOpacity(0.3),
+        color: _getStatusColor(status).withOpacity(0.2),
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: _getStatusColor(status).withOpacity(0.5)),
       ),
       child: Text(
         status.toUpperCase(),
-        style: const TextStyle(
-          color: Colors.white,
+        style: TextStyle(
+          color: _getStatusColor(status),
           fontSize: 11,
           fontWeight: FontWeight.bold,
         ),
@@ -864,13 +1136,21 @@ class _RetrievalsPageState extends State<RetrievalsPage> {
         baseList = controller.recentRetrievals;
         break;
       case 'approved':
-        baseList = controller.retrievals.where((r) => r.status.toLowerCase() == 'approved').toList();
+        baseList = controller.retrievals
+            .where((r) => r.status.toLowerCase() == 'approved')
+            .toList();
         break;
       case 'completed':
-        baseList = controller.retrievals.where((r) => r.status.toLowerCase() == 'completed' || r.status.toLowerCase() == 'collected').toList();
+        baseList = controller.retrievals
+            .where((r) =>
+                r.status.toLowerCase() == 'completed' ||
+                r.status.toLowerCase() == 'collected')
+            .toList();
         break;
       case 'rejected':
-        baseList = controller.retrievals.where((r) => r.status.toLowerCase() == 'rejected').toList();
+        baseList = controller.retrievals
+            .where((r) => r.status.toLowerCase() == 'rejected')
+            .toList();
         break;
       default:
         baseList = controller.retrievals;
@@ -896,7 +1176,7 @@ class _RetrievalsPageState extends State<RetrievalsPage> {
     return Scaffold(
       backgroundColor: Colors.transparent,
       appBar: AppBar(
-        backgroundColor: Colors.black.withOpacity(0.2),
+        backgroundColor: Colors.white.withOpacity(0.95),
         elevation: 0,
         centerTitle: false,
         title: Column(
@@ -905,35 +1185,45 @@ class _RetrievalsPageState extends State<RetrievalsPage> {
             const Text(
               'Retrievals',
               style: TextStyle(
-                color: Colors.white,
-                fontSize: 24,
-                fontWeight: FontWeight.bold,
+                color: Color(0xFF2C3E50),
+                fontWeight: FontWeight.w600,
+                fontSize: 20,
               ),
             ),
             Text(
               'Manage warehouse retrievals efficiently',
               style: TextStyle(
-                color: Colors.white.withOpacity(0.8),
-                fontSize: 13,
+                color: Color(0xFF2C3E50),
+                fontWeight: FontWeight.w100,
+                fontSize: 12,
               ),
             ),
           ],
         ),
         actions: [
           IconButton(
-            icon: const Icon(Icons.filter_list, color: Colors.white),
+            icon: const Icon(
+              Icons.filter_list,
+              color: const Color(0xFF2C3E50),
+            ),
             onPressed: () {
               _showFilterDialog();
             },
             tooltip: 'Filter',
           ),
           IconButton(
-            icon: const Icon(Icons.refresh, color: Colors.white),
+            icon: const Icon(
+              Icons.refresh,
+              color: const Color(0xFF2C3E50),
+            ),
             onPressed: _loadData,
             tooltip: 'Refresh',
           ),
           IconButton(
-            icon: const Icon(Icons.more_vert, color: Colors.white),
+            icon: const Icon(
+              Icons.more_vert,
+              color: const Color(0xFF2C3E50),
+            ),
             onPressed: () {},
             tooltip: 'More',
           ),
@@ -947,7 +1237,7 @@ class _RetrievalsPageState extends State<RetrievalsPage> {
             final totalRetrievals = controller.retrievals.length;
             final pendingCount = controller.pendingRetrievals.length;
             final recentCount = controller.recentRetrievals.length;
-            
+
             final uniqueClients = controller.retrievals
                 .map((r) => r.clientIdNumber)
                 .toSet()
@@ -1006,9 +1296,9 @@ class _RetrievalsPageState extends State<RetrievalsPage> {
             child: Container(
               margin: const EdgeInsets.fromLTRB(24, 0, 24, 24),
               decoration: BoxDecoration(
-                color: Colors.black.withOpacity(0.2),
+                color: Colors.white.withOpacity(0.95),
                 borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: Colors.white.withOpacity(0.2)),
+                border: Border.all(color: Colors.black.withOpacity(0.2)),
               ),
               child: Column(
                 children: [
@@ -1020,20 +1310,27 @@ class _RetrievalsPageState extends State<RetrievalsPage> {
                         Expanded(
                           child: Container(
                             decoration: BoxDecoration(
-                              color: Colors.white.withOpacity(0.1),
+                              color: Colors.black.withOpacity(0.1),
                               borderRadius: BorderRadius.circular(8),
-                              border: Border.all(color: Colors.white.withOpacity(0.3)),
+                              border: Border.all(
+                                  color: Colors.black.withOpacity(0.3)),
                             ),
                             child: TextField(
                               controller: _searchController,
-                              style: const TextStyle(color: Colors.white),
+                              style: const TextStyle(color: Colors.black),
                               decoration: InputDecoration(
                                 hintText: 'Search retrievals...',
-                                hintStyle: TextStyle(color: Colors.white.withOpacity(0.5)),
-                                prefixIcon: Icon(Icons.search, size: 20, color: Colors.white.withOpacity(0.7)),
+                                hintStyle: TextStyle(
+                                    color: Colors.black.withOpacity(0.5)),
+                                prefixIcon: Icon(Icons.search,
+                                    size: 20,
+                                    color: Colors.black.withOpacity(0.7)),
                                 suffixIcon: _searchQuery.isNotEmpty
                                     ? IconButton(
-                                        icon: Icon(Icons.clear, size: 20, color: Colors.white.withOpacity(0.7)),
+                                        icon: Icon(Icons.clear,
+                                            size: 20,
+                                            color:
+                                                Colors.black.withOpacity(0.7)),
                                         onPressed: () {
                                           setState(() {
                                             _searchController.clear();
@@ -1043,7 +1340,8 @@ class _RetrievalsPageState extends State<RetrievalsPage> {
                                       )
                                     : null,
                                 border: InputBorder.none,
-                                contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                                contentPadding: const EdgeInsets.symmetric(
+                                    horizontal: 16, vertical: 12),
                               ),
                               onChanged: (value) {
                                 setState(() {
@@ -1063,13 +1361,14 @@ class _RetrievalsPageState extends State<RetrievalsPage> {
                     ),
                   ),
 
-                  Divider(height: 1, color: Colors.white.withOpacity(0.2)),
+                  Divider(height: 1, color: Colors.black.withOpacity(0.2)),
 
                   // Table Header
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 24, vertical: 16),
                     decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(0.05),
+                      color: Colors.black.withOpacity(0.05),
                     ),
                     child: Row(
                       children: [
@@ -1080,7 +1379,7 @@ class _RetrievalsPageState extends State<RetrievalsPage> {
                             style: TextStyle(
                               fontWeight: FontWeight.w600,
                               fontSize: 13,
-                              color: Colors.white.withOpacity(0.7),
+                              color: Colors.black.withOpacity(0.7),
                             ),
                           ),
                         ),
@@ -1090,7 +1389,7 @@ class _RetrievalsPageState extends State<RetrievalsPage> {
                             style: TextStyle(
                               fontWeight: FontWeight.w600,
                               fontSize: 13,
-                              color: Colors.white.withOpacity(0.7),
+                              color: Colors.black.withOpacity(0.7),
                             ),
                           ),
                         ),
@@ -1100,7 +1399,7 @@ class _RetrievalsPageState extends State<RetrievalsPage> {
                             style: TextStyle(
                               fontWeight: FontWeight.w600,
                               fontSize: 13,
-                              color: Colors.white.withOpacity(0.7),
+                              color: Colors.black.withOpacity(0.7),
                             ),
                           ),
                         ),
@@ -1112,7 +1411,7 @@ class _RetrievalsPageState extends State<RetrievalsPage> {
                             style: TextStyle(
                               fontWeight: FontWeight.w600,
                               fontSize: 13,
-                              color: Colors.white.withOpacity(0.7),
+                              color: Colors.black.withOpacity(0.7),
                             ),
                           ),
                         ),
@@ -1120,14 +1419,14 @@ class _RetrievalsPageState extends State<RetrievalsPage> {
                     ),
                   ),
 
-                  Divider(height: 1, color: Colors.white.withOpacity(0.2)),
+                  Divider(height: 1, color: Colors.black.withOpacity(0.2)),
 
                   // Retrievals List
                   Expanded(
                     child: Obx(() {
                       if (controller.isLoading.value) {
                         return const Center(
-                          child: CircularProgressIndicator(color: Colors.white),
+                          child: CircularProgressIndicator(color: Colors.black),
                         );
                       }
 
@@ -1141,7 +1440,7 @@ class _RetrievalsPageState extends State<RetrievalsPage> {
                               Icon(
                                 Icons.inventory_2_outlined,
                                 size: 64,
-                                color: Colors.white.withOpacity(0.5),
+                                color: Colors.black.withOpacity(0.5),
                               ),
                               const SizedBox(height: 16),
                               Text(
@@ -1149,16 +1448,17 @@ class _RetrievalsPageState extends State<RetrievalsPage> {
                                 style: TextStyle(
                                   fontSize: 18,
                                   fontWeight: FontWeight.w600,
-                                  color: Colors.white.withOpacity(0.8),
+                                  color: Colors.black.withOpacity(0.8),
                                 ),
                               ),
                               const SizedBox(height: 8),
                               Text(
-                                _searchQuery.isNotEmpty || _selectedFilter != 'all'
+                                _searchQuery.isNotEmpty ||
+                                        _selectedFilter != 'all'
                                     ? 'Try adjusting your filters'
                                     : 'Create a new retrieval to get started',
                                 style: TextStyle(
-                                  color: Colors.white.withOpacity(0.6),
+                                  color: Colors.black.withOpacity(0.6),
                                   fontSize: 14,
                                 ),
                               ),
@@ -1174,7 +1474,8 @@ class _RetrievalsPageState extends State<RetrievalsPage> {
                         child: ListView.separated(
                           padding: const EdgeInsets.all(0),
                           itemCount: filteredRetrievals.length,
-                          separatorBuilder: (context, index) => Divider(height: 1, color: Colors.white.withOpacity(0.1)),
+                          separatorBuilder: (context, index) => Divider(
+                              height: 1, color: Colors.black.withOpacity(0.1)),
                           itemBuilder: (context, index) {
                             final retrieval = filteredRetrievals[index];
                             return _buildRetrievalListItem(retrieval);
@@ -1202,13 +1503,14 @@ class _RetrievalsPageState extends State<RetrievalsPage> {
     );
   }
 
-  Widget _buildStatCard(String label, String value, String subtitle, IconData icon, Color color) {
+  Widget _buildStatCard(
+      String label, String value, String subtitle, IconData icon, Color color) {
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: Colors.black.withOpacity(0.2),
+        color: Colors.white.withOpacity(0.95),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.white.withOpacity(0.2)),
+        border: Border.all(color: Colors.black.withOpacity(0.2)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1241,14 +1543,14 @@ class _RetrievalsPageState extends State<RetrievalsPage> {
             style: const TextStyle(
               fontSize: 28,
               fontWeight: FontWeight.bold,
-              color: Colors.white,
+              color: Colors.black,
             ),
           ),
           const SizedBox(height: 4),
           Text(
             subtitle,
             style: TextStyle(
-              color: Colors.white.withOpacity(0.7),
+              color: Colors.black.withOpacity(0.7),
               fontSize: 12,
             ),
           ),
@@ -1268,16 +1570,19 @@ class _RetrievalsPageState extends State<RetrievalsPage> {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
         decoration: BoxDecoration(
-          color: isSelected ? Colors.white.withOpacity(0.2) : Colors.transparent,
+          color:
+              isSelected ? Colors.black.withOpacity(0.2) : Colors.transparent,
           borderRadius: BorderRadius.circular(8),
           border: Border.all(
-            color: isSelected ? Colors.white.withOpacity(0.5) : Colors.white.withOpacity(0.3),
+            color: isSelected
+                ? Colors.black.withOpacity(0.5)
+                : Colors.black.withOpacity(0.3),
           ),
         ),
         child: Text(
           label,
           style: TextStyle(
-            color: Colors.white,
+            color: Colors.black,
             fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
             fontSize: 13,
           ),
@@ -1290,14 +1595,15 @@ class _RetrievalsPageState extends State<RetrievalsPage> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        backgroundColor: Colors.black.withOpacity(0.2),
+        backgroundColor: Colors.white.withOpacity(0.95),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: const Text('Filter Retrievals', style: TextStyle(color: Colors.white)),
+        title: const Text('Filter Retrievals',
+            style: TextStyle(color: Colors.black)),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             ListTile(
-              title: const Text('All', style: TextStyle(color: Colors.white)),
+              title: const Text('All', style: TextStyle(color: Colors.black)),
               leading: Radio<String>(
                 value: 'all',
                 groupValue: _selectedFilter,
@@ -1307,11 +1613,12 @@ class _RetrievalsPageState extends State<RetrievalsPage> {
                   });
                   Navigator.pop(context);
                 },
-                activeColor: Colors.white,
+                activeColor: Colors.black,
               ),
             ),
             ListTile(
-              title: const Text('Pending', style: TextStyle(color: Colors.white)),
+              title:
+                  const Text('Pending', style: TextStyle(color: Colors.black)),
               leading: Radio<String>(
                 value: 'pending',
                 groupValue: _selectedFilter,
@@ -1321,11 +1628,12 @@ class _RetrievalsPageState extends State<RetrievalsPage> {
                   });
                   Navigator.pop(context);
                 },
-                activeColor: Colors.white,
+                activeColor: Colors.black,
               ),
             ),
             ListTile(
-              title: const Text('Approved', style: TextStyle(color: Colors.white)),
+              title:
+                  const Text('Approved', style: TextStyle(color: Colors.black)),
               leading: Radio<String>(
                 value: 'approved',
                 groupValue: _selectedFilter,
@@ -1335,11 +1643,12 @@ class _RetrievalsPageState extends State<RetrievalsPage> {
                   });
                   Navigator.pop(context);
                 },
-                activeColor: Colors.white,
+                activeColor: Colors.black,
               ),
             ),
             ListTile(
-              title: const Text('Completed', style: TextStyle(color: Colors.white)),
+              title: const Text('Completed',
+                  style: TextStyle(color: Colors.black)),
               leading: Radio<String>(
                 value: 'completed',
                 groupValue: _selectedFilter,
@@ -1349,11 +1658,12 @@ class _RetrievalsPageState extends State<RetrievalsPage> {
                   });
                   Navigator.pop(context);
                 },
-                activeColor: Colors.white,
+                activeColor: Colors.black,
               ),
             ),
             ListTile(
-              title: const Text('Rejected', style: TextStyle(color: Colors.white)),
+              title:
+                  const Text('Rejected', style: TextStyle(color: Colors.black)),
               leading: Radio<String>(
                 value: 'rejected',
                 groupValue: _selectedFilter,
@@ -1363,11 +1673,12 @@ class _RetrievalsPageState extends State<RetrievalsPage> {
                   });
                   Navigator.pop(context);
                 },
-                activeColor: Colors.white,
+                activeColor: Colors.black,
               ),
             ),
             ListTile(
-              title: const Text('Recent', style: TextStyle(color: Colors.white)),
+              title:
+                  const Text('Recent', style: TextStyle(color: Colors.black)),
               leading: Radio<String>(
                 value: 'recent',
                 groupValue: _selectedFilter,
@@ -1377,7 +1688,7 @@ class _RetrievalsPageState extends State<RetrievalsPage> {
                   });
                   Navigator.pop(context);
                 },
-                activeColor: Colors.white,
+                activeColor: Colors.black,
               ),
             ),
           ],
@@ -1403,12 +1714,12 @@ class _RetrievalsPageState extends State<RetrievalsPage> {
                     decoration: BoxDecoration(
                       color: Colors.white.withOpacity(0.1),
                       borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: Colors.white.withOpacity(0.2)),
+                      border: Border.all(color: Colors.black.withOpacity(0.2)),
                     ),
                     child: Icon(
                       Icons.business,
                       size: 20,
-                      color: Colors.white.withOpacity(0.7),
+                      color: Colors.black.withOpacity(0.7),
                     ),
                   ),
                   const SizedBox(width: 12),
@@ -1421,14 +1732,14 @@ class _RetrievalsPageState extends State<RetrievalsPage> {
                           style: const TextStyle(
                             fontWeight: FontWeight.w600,
                             fontSize: 14,
-                            color: Colors.white,
+                            color: Colors.black,
                           ),
                         ),
                         const SizedBox(height: 2),
                         Text(
                           retrieval.itemDescription,
                           style: TextStyle(
-                            color: Colors.white.withOpacity(0.7),
+                            color: Colors.black.withOpacity(0.7),
                             fontSize: 12,
                           ),
                           maxLines: 1,
@@ -1447,7 +1758,7 @@ class _RetrievalsPageState extends State<RetrievalsPage> {
                 DateFormat('MMM dd, yyyy').format(retrieval.requestDate),
                 style: const TextStyle(
                   fontSize: 13,
-                  color: Colors.white,
+                  color: Colors.black,
                 ),
               ),
             ),
@@ -1455,11 +1766,13 @@ class _RetrievalsPageState extends State<RetrievalsPage> {
             // Boxes Count
             Expanded(
               child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                 decoration: BoxDecoration(
                   color: const Color(0xFF52BE80).withOpacity(0.2),
                   borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: const Color(0xFF52BE80).withOpacity(0.3)),
+                  border: Border.all(
+                      color: const Color(0xFF52BE80).withOpacity(0.3)),
                 ),
                 child: Text(
                   retrieval.items != null ? '${retrieval.items!.length}' : '1',
@@ -1480,18 +1793,21 @@ class _RetrievalsPageState extends State<RetrievalsPage> {
                 mainAxisAlignment: MainAxisAlignment.end,
                 children: [
                   IconButton(
-                    icon: Icon(Icons.visibility_outlined, size: 20, color: Colors.white.withOpacity(0.7)),
+                    icon: Icon(Icons.visibility_outlined,
+                        size: 20, color: Colors.black.withOpacity(0.7)),
                     onPressed: () => _showRetrievalDetails(retrieval),
                     tooltip: 'View',
                   ),
                   IconButton(
-                    icon: Icon(Icons.draw, size: 20, color: Colors.white.withOpacity(0.7)),
+                    icon: Icon(Icons.draw,
+                        size: 20, color: Colors.black.withOpacity(0.7)),
                     onPressed: () => _showSignatureDialog(retrieval),
                     tooltip: 'Signatures',
                   ),
                   if (controller.canDeleteRetrievals)
                     IconButton(
-                      icon: const Icon(Icons.delete_outline, size: 20, color: Colors.red),
+                      icon: const Icon(Icons.delete_outline,
+                          size: 20, color: Colors.red),
                       onPressed: () => _showDeleteDialog(retrieval),
                       tooltip: 'Delete',
                     ),
@@ -1505,96 +1821,400 @@ class _RetrievalsPageState extends State<RetrievalsPage> {
   }
 
   void _showCreateRetrievalDialog() {
-    final TextEditingController clientNameController = TextEditingController();
-    final TextEditingController clientIdController = TextEditingController();
-    final TextEditingController clientContactController = TextEditingController();
-    final TextEditingController itemDescController = TextEditingController();
-    final TextEditingController reasonController = TextEditingController();
-    final TextEditingController notesController = TextEditingController();
+    // Local state (not reactive)
+    ClientModel? selectedClient;
+    BoxModel? selectedBox;
+    DateTime? retrievalDate = DateTime.now();
+    final reasonController = TextEditingController();
 
     showDialog(
       context: context,
-      builder: (context) => Dialog(
-        backgroundColor: Colors.transparent,
-        child: Container(
-          constraints: const BoxConstraints(maxWidth: 600),
-          padding: const EdgeInsets.all(32),
-          decoration: BoxDecoration(
-            color: Colors.black.withOpacity(0.2),
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: Colors.white.withOpacity(0.3)),
-          ),
-          child: SingleChildScrollView(
+      builder: (context) => StatefulBuilder(
+        builder: (context, setState) => Dialog(
+          backgroundColor: Colors.transparent,
+          child: Container(
+            constraints: const BoxConstraints(maxWidth: 600, maxHeight: 650),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(20),
+              boxShadow: const [
+                BoxShadow(
+                  color: Colors.black26,
+                  blurRadius: 10,
+                  offset: Offset(0, 4),
+                ),
+              ],
+            ),
             child: Column(
               mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text(
-                  'New Retrieval Request',
-                  style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Colors.white),
+                // Header (unchanged)
+                Container(
+                  padding: const EdgeInsets.all(24),
+                  decoration: const BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [Color(0xFF3498DB), Color(0xFF2980B9)],
+                    ),
+                    borderRadius: BorderRadius.only(
+                      topLeft: Radius.circular(20),
+                      topRight: Radius.circular(20),
+                    ),
+                  ),
+                  child: const Row(
+                    children: [
+                      Icon(Icons.add, color: Colors.white),
+                      SizedBox(width: 12),
+                      Text(
+                        'New Retrieval',
+                        style: TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
-                const SizedBox(height: 24),
-                _buildDialogTextField(clientNameController, 'Client Name *'),
-                const SizedBox(height: 16),
-                _buildDialogTextField(clientIdController, 'Client ID Number *'),
-                const SizedBox(height: 16),
-                _buildDialogTextField(clientContactController, 'Client Contact *'),
-                const SizedBox(height: 16),
-                _buildDialogTextField(itemDescController, 'Item Description *', maxLines: 2),
-                const SizedBox(height: 16),
-                _buildDialogTextField(reasonController, 'Retrieval Reason *', maxLines: 2),
-                const SizedBox(height: 16),
-                _buildDialogTextField(notesController, 'Notes (Optional)', maxLines: 3),
-                const SizedBox(height: 24),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.end,
-                  children: [
-                    OutlinedButton(
-                      onPressed: () => Navigator.pop(context),
-                      style: OutlinedButton.styleFrom(
-                        side: BorderSide(color: Colors.white.withOpacity(0.5)),
-                      ),
-                      child: const Text('Cancel', style: TextStyle(color: Colors.white)),
-                    ),
-                    const SizedBox(width: 12),
-                    ElevatedButton(
-                      onPressed: () async {
-                        if (clientNameController.text.isEmpty ||
-                            clientIdController.text.isEmpty ||
-                            clientContactController.text.isEmpty ||
-                            itemDescController.text.isEmpty ||
-                            reasonController.text.isEmpty) {
-                          Get.snackbar(
-                            'Error',
-                            'Please fill in all required fields',
-                            snackPosition: SnackPosition.BOTTOM,
-                            backgroundColor: Colors.red,
-                            colorText: Colors.white,
+
+                // Content
+                Expanded(
+                  child: SingleChildScrollView(
+                    padding: const EdgeInsets.all(24),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        // Client dropdown – using Obx
+                        const Text(
+                          'Select Client',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
+                            color: Color(0xFF2C3E50),
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Obx(
+                          () => DropdownButtonFormField<ClientModel>(
+                            value: selectedClient,
+                            decoration: InputDecoration(
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              contentPadding: const EdgeInsets.symmetric(
+                                  horizontal: 16, vertical: 12),
+                            ),
+                            hint: const Text('Choose a client'),
+                            items: controller.clients.map((client) {
+                              return DropdownMenuItem<ClientModel>(
+                                value: client,
+                                child: Text(client.clientName),
+                              );
+                            }).toList(),
+                            onChanged: (client) {
+                              setState(() {
+                                selectedClient = client;
+                                selectedBox = null; // reset box
+                                if (client != null) {
+                                  controller
+                                      .getClientStoredBoxes(client.clientId);
+                                }
+                              });
+                            },
+                          ),
+                        ),
+
+                        // Client details (autofilled)
+                        if (selectedClient != null) ...[
+                          const SizedBox(height: 16),
+                          const Text(
+                            'Client Details',
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w600,
+                              color: Color(0xFF2C3E50),
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          Container(
+                            padding: const EdgeInsets.all(16),
+                            decoration: BoxDecoration(
+                              color: Colors.grey.shade50,
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(color: Colors.grey.shade300),
+                            ),
+                            child: Column(
+                              children: [
+                                _buildInfoRowStatic(
+                                    'Name', selectedClient!.clientName),
+                                _buildInfoRowStatic(
+                                    'Code', selectedClient!.clientCode),
+                                if (selectedClient!.contactPerson != null)
+                                  _buildInfoRowStatic('Contact',
+                                      selectedClient!.contactPerson!),
+                              ],
+                            ),
+                          ),
+                        ],
+
+                        const SizedBox(height: 16),
+
+                        // Box dropdown – using Obx
+                        const Text(
+                          'Select Box to Retrieve',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
+                            color: Color(0xFF2C3E50),
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Obx(() {
+                          if (selectedClient == null) {
+                            return const Text('Please select a client first.',
+                                style: TextStyle(color: Colors.grey));
+                          }
+                          if (controller.loadingBoxes.value) {
+                            return const Center(
+                              child: Padding(
+                                padding: EdgeInsets.all(8.0),
+                                child: CircularProgressIndicator(),
+                              ),
+                            );
+                          }
+                          if (controller.clientStoredBoxes.isEmpty) {
+                            return const Text('No stored boxes available.',
+                                style: TextStyle(color: Colors.grey));
+                          }
+                          return DropdownButtonFormField<BoxModel>(
+                            value: selectedBox,
+                            decoration: InputDecoration(
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                            ),
+                            hint: const Text('Choose a box'),
+                            items: controller.clientStoredBoxes.map((box) {
+                              return DropdownMenuItem<BoxModel>(
+                                value: box,
+                                child: Text(
+                                    '${box.boxNumber} - ${box.description ?? 'No description'}'),
+                              );
+                            }).toList(),
+                            onChanged: (box) {
+                              setState(() {
+                                selectedBox = box;
+                              });
+                            },
                           );
-                          return;
-                        }
+                        }),
 
-                        final request = CreateRetrievalRequest(
-                          clientName: clientNameController.text,
-                          clientIdNumber: clientIdController.text,
-                          clientContact: clientContactController.text,
-                          itemDescription: itemDescController.text,
-                          retrievalReason: reasonController.text,
-                          notes: notesController.text.isEmpty ? null : notesController.text,
-                        );
+                        const SizedBox(height: 16),
 
-                        final success = await controller.createRetrieval(request);
-                        Navigator.pop(context);
-                        if (success) {
-                          _loadData();
-                        }
-                      },
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.green.withOpacity(0.7),
-                      ),
-                      child: const Text('Create Retrieval'),
+                        // Retrieval Date (unchanged)
+                        const Text(
+                          'Retrieval Date',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
+                            color: Color(0xFF2C3E50),
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        InkWell(
+                          onTap: () async {
+                            final date = await showDatePicker(
+                              context: context,
+                              initialDate: retrievalDate ?? DateTime.now(),
+                              firstDate: DateTime(2020),
+                              lastDate:
+                                  DateTime.now().add(const Duration(days: 1)),
+                              builder: (context, child) => Theme(
+                                data: Theme.of(context).copyWith(
+                                  colorScheme: const ColorScheme.light(
+                                    primary: Color(0xFF3498DB),
+                                  ),
+                                ),
+                                child: child!,
+                              ),
+                            );
+                            if (date != null && mounted) {
+                              setState(() {
+                                retrievalDate = date;
+                              });
+                            }
+                          },
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 16, vertical: 16),
+                            decoration: BoxDecoration(
+                              border: Border.all(color: Colors.grey.shade300),
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Text(
+                                  retrievalDate != null
+                                      ? DateFormat('yyyy-MM-dd')
+                                          .format(retrievalDate!)
+                                      : 'Select date',
+                                  style: const TextStyle(fontSize: 16),
+                                ),
+                                const Icon(Icons.calendar_today,
+                                    color: Color(0xFF3498DB)),
+                              ],
+                            ),
+                          ),
+                        ),
+
+                        const SizedBox(height: 16),
+
+                        // Reason / Description
+                        const Text(
+                          'Reason / Description',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
+                            color: Color(0xFF2C3E50),
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        TextField(
+                          controller: reasonController,
+                          maxLines: 3,
+                          decoration: InputDecoration(
+                            hintText: 'Enter reason or description',
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            contentPadding: const EdgeInsets.all(16),
+                          ),
+                        ),
+                      ],
                     ),
-                  ],
+                  ),
+                ),
+
+                // Footer Actions
+                Container(
+                  padding: const EdgeInsets.all(24),
+                  decoration: BoxDecoration(
+                    border:
+                        Border(top: BorderSide(color: Colors.grey.shade300)),
+                  ),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton(
+                          onPressed: () => Navigator.pop(context),
+                          style: OutlinedButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(vertical: 16),
+                            side: const BorderSide(color: Color(0xFF3498DB)),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                          ),
+                          child: const Text(
+                            'Cancel',
+                            style: TextStyle(
+                              color: Color(0xFF3498DB),
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 16),
+                      Expanded(
+                        child: ElevatedButton(
+                          onPressed: () async {
+                            // Validation
+                            if (selectedClient == null) {
+                              Get.snackbar('Error', 'Please select a client',
+                                  backgroundColor: Colors.red,
+                                  colorText: Colors.white);
+                              return;
+                            }
+                            if (selectedBox == null) {
+                              Get.snackbar('Error', 'Please select a box',
+                                  backgroundColor: Colors.red,
+                                  colorText: Colors.white);
+                              return;
+                            }
+                            if (retrievalDate == null) {
+                              Get.snackbar('Error', 'Please select a date',
+                                  backgroundColor: Colors.red,
+                                  colorText: Colors.white);
+                              return;
+                            }
+                            if (reasonController.text.isEmpty) {
+                              Get.snackbar('Error', 'Please enter a reason',
+                                  backgroundColor: Colors.red,
+                                  colorText: Colors.white);
+                              return;
+                            }
+
+                            // Get current user's name for retrievedBy
+                            final retrievedBy = Get.find<AuthController>().currentUser.value?.username ?? 'Unknown';
+
+                            final request = CreateRetrievalRequest(
+                              clientId: selectedClient!.clientId,
+                              boxId: selectedBox!.boxId,
+                              retrievalDate: DateFormat('yyyy-MM-dd')
+                                  .format(retrievalDate!),
+                              retrievedBy: retrievedBy,
+                              reason: reasonController.text,
+                            );
+
+                            // Show loading indicator
+                            Get.dialog(
+                              const Center(child: CircularProgressIndicator()),
+                              barrierDismissible: false,
+                            );
+
+                            final success =
+                                await controller.createRetrieval(request);
+
+                            if (!mounted) return;
+                            Get.back(); // close loading
+
+                            if (success) {
+                              Navigator.pop(context); // close dialog
+                              _loadData();
+                              Get.snackbar(
+                                'Success',
+                                'Retrieval created successfully',
+                                backgroundColor: Colors.green,
+                                colorText: Colors.white,
+                              );
+                            } else {
+                              Get.snackbar(
+                                'Error',
+                                controller.errorMessage.value.isNotEmpty
+                                    ? controller.errorMessage.value
+                                    : 'Failed to create retrieval',
+                                backgroundColor: Colors.red,
+                                colorText: Colors.white,
+                              );
+                            }
+                          },
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFF3498DB),
+                            padding: const EdgeInsets.symmetric(vertical: 16),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                          ),
+                          child: const Text(
+                            'Create Retrieval',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ],
             ),
@@ -1604,7 +2224,26 @@ class _RetrievalsPageState extends State<RetrievalsPage> {
     );
   }
 
-  Widget _buildDialogTextField(TextEditingController controller, String label, {int maxLines = 1}) {
+// Helper to display static info rows
+  Widget _buildInfoRowStatic(String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        children: [
+          SizedBox(
+            width: 80,
+            child: Text(label,
+                style:
+                    const TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
+          ),
+          Text(':  $value', style: const TextStyle(fontSize: 14)),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDialogTextField(TextEditingController controller, String label,
+      {int maxLines = 1}) {
     return Container(
       decoration: BoxDecoration(
         color: Colors.white.withOpacity(0.1),

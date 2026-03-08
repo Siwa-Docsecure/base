@@ -1819,8 +1819,7 @@ class _CollectionsPageState extends State<CollectionsPage> {
 
     try {
       // Get dispatcher name from current user
-      final dispatcherName =
-          _authController.currentUser.value?.username ?? 'Unknown';
+      final dispatcherName = _authController.currentUser.value?.username ?? 'Unknown';
 
       // Get collector name from selected user
       final collectorUser = _clientUsers.firstWhere(
