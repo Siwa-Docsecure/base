@@ -1,7 +1,7 @@
 // lib/models/retrieval_model.dart
 
 import 'dart:convert';
-import 'dart:typed_data'; // <-- ADDED for signature decoding
+import 'dart:typed_data';
 
 /// Main model for retrieval records
 class RetrievalModel {
@@ -28,6 +28,10 @@ class RetrievalModel {
   final List<RetrievalDocumentModel>? documents;
   final List<RetrievalHistoryModel>? history;
 
+  // Box fields — mapped from the nested `box` object in the API response.
+  final String? boxNumber;
+  final String? boxDescription;
+
   RetrievalModel({
     this.retrievalId,
     required this.retrievalNumber,
@@ -51,109 +55,119 @@ class RetrievalModel {
     this.items,
     this.documents,
     this.history,
+    this.boxNumber,
+    this.boxDescription,
   });
 
-  // Computed getters
-  bool get hasClientSignature => clientSignature != null && clientSignature!.isNotEmpty;
-  
-  bool get hasStaffSignature => staffSignature != null && staffSignature!.isNotEmpty;
-  
-  bool get isComplete => status.toLowerCase() == 'completed' || status.toLowerCase() == 'collected';
-  
+  // ── Computed getters ──────────────────────────────────────────────────────
+
+  bool get hasClientSignature =>
+      clientSignature != null && clientSignature!.isNotEmpty;
+  bool get hasStaffSignature =>
+      staffSignature != null && staffSignature!.isNotEmpty;
+  bool get isComplete =>
+      status.toLowerCase() == 'completed' ||
+      status.toLowerCase() == 'collected';
+
   String? get pdfPath => pdfUrl;
 
-  // ========== NEW: Signature helper methods ==========
-  /// Returns decoded client signature bytes for display in Image.memory
+  /// Display name: box number if available, otherwise retrieval number.
+  String get displayBoxName => boxNumber ?? retrievalNumber;
+
+  /// Signature helper methods
   Uint8List? getClientSignatureBytes() => _decodeBase64Image(clientSignature);
+  Uint8List? getStaffSignatureBytes()  => _decodeBase64Image(staffSignature);
 
-  /// Returns decoded staff signature bytes for display in Image.memory
-  Uint8List? getStaffSignatureBytes() => _decodeBase64Image(staffSignature);
-
-  /// Decodes a base64 string, removing any data URI prefix if present.
   Uint8List? _decodeBase64Image(String? base64String) {
     if (base64String == null || base64String.isEmpty) return null;
     try {
-      // Remove data URI prefix (e.g., "data:image/png;base64,")
       String clean = base64String.contains('base64,')
           ? base64String.split('base64,').last
           : base64String;
-      clean = clean.trim();
-      return base64Decode(clean);
+      return base64Decode(clean.trim());
     } catch (e) {
-      print('Error decoding signature: $e');
       return null;
     }
   }
-  // ===================================================
+
+  // ── fromJson ──────────────────────────────────────────────────────────────
 
   factory RetrievalModel.fromJson(Map<String, dynamic> json) {
-  // Extract nested client data if present
-  final clientData = json['client'] as Map<String, dynamic>?;
-  final boxData = json['box'] as Map<String, dynamic>?;
+    final clientData = json['client'] as Map<String, dynamic>?;
+    final boxData    = json['box']    as Map<String, dynamic>?;
 
-  return RetrievalModel(
-    retrievalId: json['retrievalId'] ?? json['id'],
-    retrievalNumber: json['retrievalNumber'] ?? '',
-    clientName: clientData?['clientName'] ?? json['clientName'] ?? '',
-    // Map backend's clientCode to clientIdNumber, and contactPerson to clientContact
-    clientIdNumber: clientData?['clientCode'] ?? json['clientIdNumber'] ?? '',
-    clientContact: clientData?['contactPerson'] ?? json['clientContact'] ?? '',
-    itemDescription: json['itemDescription'] ?? '',
-    retrievalReason: json['reason'] ?? json['retrievalReason'] ?? '',
-    status: json['status'] ?? 'pending',
-    requestedBy: json['retrievedBy'] ?? json['requestedBy'] ?? '',
-    approvedBy: json['approvedBy'],
-    collectedBy: json['collectedBy'],
-    requestDate: json['retrievalDate'] != null
-        ? DateTime.parse(json['retrievalDate'])
-        : (json['requestDate'] != null ? DateTime.parse(json['requestDate']) : DateTime.now()),
-    approvalDate: json['approvalDate'] != null ? DateTime.parse(json['approvalDate']) : null,
-    collectionDate: json['collectionDate'] != null ? DateTime.parse(json['collectionDate']) : null,
-    notes: json['notes'] ?? json['reason'],
-    rejectionReason: json['rejectionReason'],
-    clientSignature: json['clientSignature'],
-    staffSignature: json['staffSignature'],
-    pdfUrl: json['pdfPath'] ?? json['pdfUrl'],
-    items: json['items'] != null
-        ? (json['items'] as List).map((i) => RetrievalItemModel.fromJson(i)).toList()
-        : null,
-    documents: json['documents'] != null
-        ? (json['documents'] as List).map((d) => RetrievalDocumentModel.fromJson(d)).toList()
-        : null,
-    history: json['history'] != null
-        ? (json['history'] as List).map((h) => RetrievalHistoryModel.fromJson(h)).toList()
-        : null,
-  );
-}
+    return RetrievalModel(
+      retrievalId:    json['retrievalId'] ?? json['id'],
+      retrievalNumber: json['retrievalNumber'] ?? '',
+      clientName:     clientData?['clientName']    ?? json['clientName']    ?? '',
+      clientIdNumber: clientData?['clientCode']    ?? json['clientIdNumber'] ?? '',
+      clientContact:  clientData?['contactPerson'] ?? json['clientContact'] ?? '',
+      itemDescription: json['itemDescription'] ?? '',
+      retrievalReason: json['reason'] ?? json['retrievalReason'] ?? '',
+      status:          json['status'] ?? 'pending',
+      requestedBy:     json['retrievedBy'] ?? json['requestedBy'] ?? '',
+      approvedBy:      json['approvedBy'],
+      collectedBy:     json['collectedBy'],
+      requestDate: json['retrievalDate'] != null
+          ? DateTime.parse(json['retrievalDate'])
+          : (json['requestDate'] != null
+              ? DateTime.parse(json['requestDate'])
+              : DateTime.now()),
+      approvalDate:   json['approvalDate']   != null ? DateTime.parse(json['approvalDate'])   : null,
+      collectionDate: json['collectionDate'] != null ? DateTime.parse(json['collectionDate']) : null,
+      notes:           json['notes'] ?? json['reason'],
+      rejectionReason: json['rejectionReason'],
+      clientSignature: json['clientSignature'],
+      staffSignature:  json['staffSignature'],
+      pdfUrl:          json['pdfPath'] ?? json['pdfUrl'],
+      items: json['items'] != null
+          ? (json['items'] as List).map((i) => RetrievalItemModel.fromJson(i)).toList()
+          : null,
+      documents: json['documents'] != null
+          ? (json['documents'] as List).map((d) => RetrievalDocumentModel.fromJson(d)).toList()
+          : null,
+      history: json['history'] != null
+          ? (json['history'] as List).map((h) => RetrievalHistoryModel.fromJson(h)).toList()
+          : null,
+      // ── Box fields — read from nested `box` object or flat keys ──────────
+      boxNumber:      boxData?['boxNumber']   ?? json['boxNumber'],
+      boxDescription: boxData?['description'] ?? boxData?['boxDescription'] ?? json['boxDescription'],
+    );
+  }
+
+  // ── toJson ────────────────────────────────────────────────────────────────
 
   Map<String, dynamic> toJson() {
     return {
       if (retrievalId != null) 'retrievalId': retrievalId,
       'retrievalNumber': retrievalNumber,
-      'clientName': clientName,
-      'clientIdNumber': clientIdNumber,
-      'clientContact': clientContact,
+      'clientName':      clientName,
+      'clientIdNumber':  clientIdNumber,
+      'clientContact':   clientContact,
       'itemDescription': itemDescription,
       'retrievalReason': retrievalReason,
-      'status': status,
-      'requestedBy': requestedBy,
-      if (approvedBy != null) 'approvedBy': approvedBy,
-      if (collectedBy != null) 'collectedBy': collectedBy,
+      'status':          status,
+      'requestedBy':     requestedBy,
+      if (approvedBy      != null) 'approvedBy':      approvedBy,
+      if (collectedBy     != null) 'collectedBy':     collectedBy,
       'requestDate': requestDate.toIso8601String(),
-      if (approvalDate != null) 'approvalDate': approvalDate!.toIso8601String(),
-      if (collectionDate != null) 'collectionDate': collectionDate!.toIso8601String(),
-      if (notes != null) 'notes': notes,
+      if (approvalDate    != null) 'approvalDate':    approvalDate!.toIso8601String(),
+      if (collectionDate  != null) 'collectionDate':  collectionDate!.toIso8601String(),
+      if (notes           != null) 'notes':           notes,
       if (rejectionReason != null) 'rejectionReason': rejectionReason,
       if (clientSignature != null) 'clientSignature': clientSignature,
-      if (staffSignature != null) 'staffSignature': staffSignature,
-      if (pdfUrl != null) 'pdfUrl': pdfUrl,
-      if (items != null) 'items': items!.map((i) => i.toJson()).toList(),
+      if (staffSignature  != null) 'staffSignature':  staffSignature,
+      if (pdfUrl          != null) 'pdfUrl':          pdfUrl,
+      if (boxNumber       != null) 'boxNumber':       boxNumber,
+      if (boxDescription  != null) 'boxDescription':  boxDescription,
+      if (items     != null) 'items':     items!.map((i) => i.toJson()).toList(),
       if (documents != null) 'documents': documents!.map((d) => d.toJson()).toList(),
-      if (history != null) 'history': history!.map((h) => h.toJson()).toList(),
+      if (history   != null) 'history':   history!.map((h) => h.toJson()).toList(),
     };
   }
 
-  // Copy with method for easy updates
+  // ── copyWith ──────────────────────────────────────────────────────────────
+
   RetrievalModel copyWith({
     int? retrievalId,
     String? retrievalNumber,
@@ -177,42 +191,50 @@ class RetrievalModel {
     List<RetrievalItemModel>? items,
     List<RetrievalDocumentModel>? documents,
     List<RetrievalHistoryModel>? history,
+    String? boxNumber,
+    String? boxDescription,
   }) {
     return RetrievalModel(
-      retrievalId: retrievalId ?? this.retrievalId,
+      retrievalId:     retrievalId     ?? this.retrievalId,
       retrievalNumber: retrievalNumber ?? this.retrievalNumber,
-      clientName: clientName ?? this.clientName,
-      clientIdNumber: clientIdNumber ?? this.clientIdNumber,
-      clientContact: clientContact ?? this.clientContact,
+      clientName:      clientName      ?? this.clientName,
+      clientIdNumber:  clientIdNumber  ?? this.clientIdNumber,
+      clientContact:   clientContact   ?? this.clientContact,
       itemDescription: itemDescription ?? this.itemDescription,
       retrievalReason: retrievalReason ?? this.retrievalReason,
-      status: status ?? this.status,
-      requestedBy: requestedBy ?? this.requestedBy,
-      approvedBy: approvedBy ?? this.approvedBy,
-      collectedBy: collectedBy ?? this.collectedBy,
-      requestDate: requestDate ?? this.requestDate,
-      approvalDate: approvalDate ?? this.approvalDate,
-      collectionDate: collectionDate ?? this.collectionDate,
-      notes: notes ?? this.notes,
+      status:          status          ?? this.status,
+      requestedBy:     requestedBy     ?? this.requestedBy,
+      approvedBy:      approvedBy      ?? this.approvedBy,
+      collectedBy:     collectedBy     ?? this.collectedBy,
+      requestDate:     requestDate     ?? this.requestDate,
+      approvalDate:    approvalDate    ?? this.approvalDate,
+      collectionDate:  collectionDate  ?? this.collectionDate,
+      notes:           notes           ?? this.notes,
       rejectionReason: rejectionReason ?? this.rejectionReason,
       clientSignature: clientSignature ?? this.clientSignature,
-      staffSignature: staffSignature ?? this.staffSignature,
-      pdfUrl: pdfUrl ?? this.pdfUrl,
-      items: items ?? this.items,
-      documents: documents ?? this.documents,
-      history: history ?? this.history,
+      staffSignature:  staffSignature  ?? this.staffSignature,
+      pdfUrl:          pdfUrl          ?? this.pdfUrl,
+      items:           items           ?? this.items,
+      documents:       documents       ?? this.documents,
+      history:         history         ?? this.history,
+      boxNumber:       boxNumber       ?? this.boxNumber,
+      boxDescription:  boxDescription  ?? this.boxDescription,
     );
   }
 }
 
-/// Model for creating a new retrieval request
+// ─────────────────────────────────────────────────────────────────────────────
+// Request model
+// ─────────────────────────────────────────────────────────────────────────────
+
 class CreateRetrievalRequest {
   final int clientId;
   final int boxId;
-  final String retrievalDate; // Format: YYYY-MM-DD
+  final String retrievalDate;
   final String? retrievedBy;
   final String? reason;
   final String? staffSignature;
+  final String? clientSignature;
 
   CreateRetrievalRequest({
     required this.clientId,
@@ -221,21 +243,26 @@ class CreateRetrievalRequest {
     this.retrievedBy,
     this.reason,
     this.staffSignature,
+    this.clientSignature,
   });
 
   Map<String, dynamic> toJson() {
     return {
-      'clientId': clientId,
-      'boxId': boxId,
+      'clientId':     clientId,
+      'boxId':        boxId,
       'retrievalDate': retrievalDate,
-      if (retrievedBy != null) 'retrievedBy': retrievedBy,
-      if (reason != null) 'reason': reason,
-      if (staffSignature != null) 'staffSignature': staffSignature,
+      if (retrievedBy     != null) 'retrievedBy':     retrievedBy,
+      if (reason          != null) 'reason':          reason,
+      if (staffSignature  != null) 'staffSignature':  staffSignature,
+      if (clientSignature != null) 'clientSignature': clientSignature,
     };
   }
 }
 
-/// Model for retrieval item request
+// ─────────────────────────────────────────────────────────────────────────────
+// Supporting models (unchanged)
+// ─────────────────────────────────────────────────────────────────────────────
+
 class RetrievalItemRequest {
   final String itemName;
   final String itemCategory;
@@ -249,26 +276,22 @@ class RetrievalItemRequest {
     this.serialNumber,
   });
 
-  Map<String, dynamic> toJson() {
-    return {
-      'itemName': itemName,
-      'itemCategory': itemCategory,
-      'quantity': quantity,
-      if (serialNumber != null) 'serialNumber': serialNumber,
-    };
-  }
+  Map<String, dynamic> toJson() => {
+        'itemName':     itemName,
+        'itemCategory': itemCategory,
+        'quantity':     quantity,
+        if (serialNumber != null) 'serialNumber': serialNumber,
+      };
 
-  factory RetrievalItemRequest.fromJson(Map<String, dynamic> json) {
-    return RetrievalItemRequest(
-      itemName: json['itemName'] ?? '',
-      itemCategory: json['itemCategory'] ?? '',
-      quantity: json['quantity'] ?? 1,
-      serialNumber: json['serialNumber'],
-    );
-  }
+  factory RetrievalItemRequest.fromJson(Map<String, dynamic> json) =>
+      RetrievalItemRequest(
+        itemName:     json['itemName']     ?? '',
+        itemCategory: json['itemCategory'] ?? '',
+        quantity:     json['quantity']     ?? 1,
+        serialNumber: json['serialNumber'],
+      );
 }
 
-/// Model for retrieval items
 class RetrievalItemModel {
   final int? itemId;
   final String itemName;
@@ -286,30 +309,26 @@ class RetrievalItemModel {
     this.condition,
   });
 
-  factory RetrievalItemModel.fromJson(Map<String, dynamic> json) {
-    return RetrievalItemModel(
-      itemId: json['itemId'] ?? json['id'],
-      itemName: json['itemName'] ?? '',
-      itemCategory: json['itemCategory'] ?? '',
-      quantity: json['quantity'] ?? 1,
-      serialNumber: json['serialNumber'],
-      condition: json['condition'],
-    );
-  }
+  factory RetrievalItemModel.fromJson(Map<String, dynamic> json) =>
+      RetrievalItemModel(
+        itemId:       json['itemId'] ?? json['id'],
+        itemName:     json['itemName']     ?? '',
+        itemCategory: json['itemCategory'] ?? '',
+        quantity:     json['quantity']     ?? 1,
+        serialNumber: json['serialNumber'],
+        condition:    json['condition'],
+      );
 
-  Map<String, dynamic> toJson() {
-    return {
-      if (itemId != null) 'itemId': itemId,
-      'itemName': itemName,
-      'itemCategory': itemCategory,
-      'quantity': quantity,
-      if (serialNumber != null) 'serialNumber': serialNumber,
-      if (condition != null) 'condition': condition,
-    };
-  }
+  Map<String, dynamic> toJson() => {
+        if (itemId     != null) 'itemId':     itemId,
+        'itemName':     itemName,
+        'itemCategory': itemCategory,
+        'quantity':     quantity,
+        if (serialNumber != null) 'serialNumber': serialNumber,
+        if (condition    != null) 'condition':    condition,
+      };
 }
 
-/// Model for retrieval documents
 class RetrievalDocumentModel {
   final int? documentId;
   final String documentName;
@@ -327,32 +346,28 @@ class RetrievalDocumentModel {
     required this.uploadedBy,
   });
 
-  factory RetrievalDocumentModel.fromJson(Map<String, dynamic> json) {
-    return RetrievalDocumentModel(
-      documentId: json['documentId'] ?? json['id'],
-      documentName: json['documentName'] ?? '',
-      documentType: json['documentType'] ?? '',
-      documentUrl: json['documentUrl'] ?? '',
-      uploadedDate: json['uploadedDate'] != null 
-          ? DateTime.parse(json['uploadedDate']) 
-          : DateTime.now(),
-      uploadedBy: json['uploadedBy'] ?? '',
-    );
-  }
+  factory RetrievalDocumentModel.fromJson(Map<String, dynamic> json) =>
+      RetrievalDocumentModel(
+        documentId:   json['documentId'] ?? json['id'],
+        documentName: json['documentName'] ?? '',
+        documentType: json['documentType'] ?? '',
+        documentUrl:  json['documentUrl']  ?? '',
+        uploadedDate: json['uploadedDate'] != null
+            ? DateTime.parse(json['uploadedDate'])
+            : DateTime.now(),
+        uploadedBy: json['uploadedBy'] ?? '',
+      );
 
-  Map<String, dynamic> toJson() {
-    return {
-      if (documentId != null) 'documentId': documentId,
-      'documentName': documentName,
-      'documentType': documentType,
-      'documentUrl': documentUrl,
-      'uploadedDate': uploadedDate.toIso8601String(),
-      'uploadedBy': uploadedBy,
-    };
-  }
+  Map<String, dynamic> toJson() => {
+        if (documentId != null) 'documentId': documentId,
+        'documentName': documentName,
+        'documentType': documentType,
+        'documentUrl':  documentUrl,
+        'uploadedDate': uploadedDate.toIso8601String(),
+        'uploadedBy':   uploadedBy,
+      };
 }
 
-/// Model for retrieval history/audit trail
 class RetrievalHistoryModel {
   final int? historyId;
   final String action;
@@ -372,34 +387,30 @@ class RetrievalHistoryModel {
     this.newStatus,
   });
 
-  factory RetrievalHistoryModel.fromJson(Map<String, dynamic> json) {
-    return RetrievalHistoryModel(
-      historyId: json['historyId'] ?? json['id'],
-      action: json['action'] ?? '',
-      performedBy: json['performedBy'] ?? '',
-      timestamp: json['timestamp'] != null 
-          ? DateTime.parse(json['timestamp']) 
-          : DateTime.now(),
-      comments: json['comments'],
-      previousStatus: json['previousStatus'],
-      newStatus: json['newStatus'],
-    );
-  }
+  factory RetrievalHistoryModel.fromJson(Map<String, dynamic> json) =>
+      RetrievalHistoryModel(
+        historyId:      json['historyId'] ?? json['id'],
+        action:         json['action']      ?? '',
+        performedBy:    json['performedBy'] ?? '',
+        timestamp: json['timestamp'] != null
+            ? DateTime.parse(json['timestamp'])
+            : DateTime.now(),
+        comments:       json['comments'],
+        previousStatus: json['previousStatus'],
+        newStatus:      json['newStatus'],
+      );
 
-  Map<String, dynamic> toJson() {
-    return {
-      if (historyId != null) 'historyId': historyId,
-      'action': action,
-      'performedBy': performedBy,
-      'timestamp': timestamp.toIso8601String(),
-      if (comments != null) 'comments': comments,
-      if (previousStatus != null) 'previousStatus': previousStatus,
-      if (newStatus != null) 'newStatus': newStatus,
-    };
-  }
+  Map<String, dynamic> toJson() => {
+        if (historyId      != null) 'historyId':      historyId,
+        'action':       action,
+        'performedBy':  performedBy,
+        'timestamp':    timestamp.toIso8601String(),
+        if (comments       != null) 'comments':       comments,
+        if (previousStatus != null) 'previousStatus': previousStatus,
+        if (newStatus      != null) 'newStatus':      newStatus,
+      };
 }
 
-/// Model for retrieval statistics
 class RetrievalStats {
   final int totalRetrievals;
   final int pendingRetrievals;
@@ -423,46 +434,42 @@ class RetrievalStats {
     this.topClients,
   });
 
-  factory RetrievalStats.fromJson(Map<String, dynamic> json) {
-    return RetrievalStats(
-      totalRetrievals: json['totalRetrievals'] ?? 0,
-      pendingRetrievals: json['pendingRetrievals'] ?? 0,
-      approvedRetrievals: json['approvedRetrievals'] ?? 0,
-      rejectedRetrievals: json['rejectedRetrievals'] ?? 0,
-      completedRetrievals: json['completedRetrievals'] ?? 0,
-      retrievalsByCategory: json['retrievalsByCategory'] != null
-          ? Map<String, int>.from(json['retrievalsByCategory'])
-          : null,
-      retrievalsByStatus: json['retrievalsByStatus'] != null
-          ? Map<String, int>.from(json['retrievalsByStatus'])
-          : null,
-      retrievalsByMonth: json['retrievalsByMonth'] != null
-          ? Map<String, int>.from(json['retrievalsByMonth'])
-          : null,
-      topClients: json['topClients'] != null
-          ? (json['topClients'] as List)
-              .map((client) => TopClientModel.fromJson(client))
-              .toList()
-          : null,
-    );
-  }
+  factory RetrievalStats.fromJson(Map<String, dynamic> json) => RetrievalStats(
+        totalRetrievals:     json['totalRetrievals']     ?? 0,
+        pendingRetrievals:   json['pendingRetrievals']   ?? 0,
+        approvedRetrievals:  json['approvedRetrievals']  ?? 0,
+        rejectedRetrievals:  json['rejectedRetrievals']  ?? 0,
+        completedRetrievals: json['completedRetrievals'] ?? 0,
+        retrievalsByCategory: json['retrievalsByCategory'] != null
+            ? Map<String, int>.from(json['retrievalsByCategory'])
+            : null,
+        retrievalsByStatus: json['retrievalsByStatus'] != null
+            ? Map<String, int>.from(json['retrievalsByStatus'])
+            : null,
+        retrievalsByMonth: json['retrievalsByMonth'] != null
+            ? Map<String, int>.from(json['retrievalsByMonth'])
+            : null,
+        topClients: json['topClients'] != null
+            ? (json['topClients'] as List)
+                .map((c) => TopClientModel.fromJson(c))
+                .toList()
+            : null,
+      );
 
-  Map<String, dynamic> toJson() {
-    return {
-      'totalRetrievals': totalRetrievals,
-      'pendingRetrievals': pendingRetrievals,
-      'approvedRetrievals': approvedRetrievals,
-      'rejectedRetrievals': rejectedRetrievals,
-      'completedRetrievals': completedRetrievals,
-      if (retrievalsByCategory != null) 'retrievalsByCategory': retrievalsByCategory,
-      if (retrievalsByStatus != null) 'retrievalsByStatus': retrievalsByStatus,
-      if (retrievalsByMonth != null) 'retrievalsByMonth': retrievalsByMonth,
-      if (topClients != null) 'topClients': topClients!.map((c) => c.toJson()).toList(),
-    };
-  }
+  Map<String, dynamic> toJson() => {
+        'totalRetrievals':     totalRetrievals,
+        'pendingRetrievals':   pendingRetrievals,
+        'approvedRetrievals':  approvedRetrievals,
+        'rejectedRetrievals':  rejectedRetrievals,
+        'completedRetrievals': completedRetrievals,
+        if (retrievalsByCategory != null) 'retrievalsByCategory': retrievalsByCategory,
+        if (retrievalsByStatus   != null) 'retrievalsByStatus':   retrievalsByStatus,
+        if (retrievalsByMonth    != null) 'retrievalsByMonth':    retrievalsByMonth,
+        if (topClients           != null)
+          'topClients': topClients!.map((c) => c.toJson()).toList(),
+      };
 }
 
-/// Model for top clients
 class TopClientModel {
   final String clientName;
   final String clientIdNumber;
@@ -474,24 +481,19 @@ class TopClientModel {
     required this.retrievalCount,
   });
 
-  factory TopClientModel.fromJson(Map<String, dynamic> json) {
-    return TopClientModel(
-      clientName: json['clientName'] ?? '',
-      clientIdNumber: json['clientIdNumber'] ?? '',
-      retrievalCount: json['retrievalCount'] ?? 0,
-    );
-  }
+  factory TopClientModel.fromJson(Map<String, dynamic> json) => TopClientModel(
+        clientName:     json['clientName']     ?? '',
+        clientIdNumber: json['clientIdNumber'] ?? '',
+        retrievalCount: json['retrievalCount'] ?? 0,
+      );
 
-  Map<String, dynamic> toJson() {
-    return {
-      'clientName': clientName,
-      'clientIdNumber': clientIdNumber,
-      'retrievalCount': retrievalCount,
-    };
-  }
+  Map<String, dynamic> toJson() => {
+        'clientName':     clientName,
+        'clientIdNumber': clientIdNumber,
+        'retrievalCount': retrievalCount,
+      };
 }
 
-/// Model for retrieval summary
 class RetrievalSummary {
   final String retrievalNumber;
   final String clientName;
@@ -509,32 +511,28 @@ class RetrievalSummary {
     required this.itemDescription,
   });
 
-  factory RetrievalSummary.fromJson(Map<String, dynamic> json) {
-    return RetrievalSummary(
-      retrievalNumber: json['retrievalNumber'] ?? '',
-      clientName: json['clientName'] ?? '',
-      status: json['status'] ?? '',
-      requestDate: json['requestDate'] != null 
-          ? DateTime.parse(json['requestDate']) 
-          : DateTime.now(),
-      itemCount: json['itemCount'] ?? 0,
-      itemDescription: json['itemDescription'] ?? '',
-    );
-  }
+  factory RetrievalSummary.fromJson(Map<String, dynamic> json) =>
+      RetrievalSummary(
+        retrievalNumber: json['retrievalNumber'] ?? '',
+        clientName:      json['clientName']      ?? '',
+        status:          json['status']          ?? '',
+        requestDate: json['requestDate'] != null
+            ? DateTime.parse(json['requestDate'])
+            : DateTime.now(),
+        itemCount:       json['itemCount']       ?? 0,
+        itemDescription: json['itemDescription'] ?? '',
+      );
 
-  Map<String, dynamic> toJson() {
-    return {
-      'retrievalNumber': retrievalNumber,
-      'clientName': clientName,
-      'status': status,
-      'requestDate': requestDate.toIso8601String(),
-      'itemCount': itemCount,
-      'itemDescription': itemDescription,
-    };
-  }
+  Map<String, dynamic> toJson() => {
+        'retrievalNumber': retrievalNumber,
+        'clientName':      clientName,
+        'status':          status,
+        'requestDate':     requestDate.toIso8601String(),
+        'itemCount':       itemCount,
+        'itemDescription': itemDescription,
+      };
 }
 
-/// Model for client retrieval report
 class ClientRetrievalReport {
   final String clientName;
   final String clientIdNumber;
@@ -558,42 +556,39 @@ class ClientRetrievalReport {
     this.lastRetrievalDate,
   });
 
-  factory ClientRetrievalReport.fromJson(Map<String, dynamic> json) {
-    return ClientRetrievalReport(
-      clientName: json['clientName'] ?? '',
-      clientIdNumber: json['clientIdNumber'] ?? '',
-      clientContact: json['clientContact'] ?? '',
-      totalRetrievals: json['totalRetrievals'] ?? 0,
-      pendingRetrievals: json['pendingRetrievals'] ?? 0,
-      approvedRetrievals: json['approvedRetrievals'] ?? 0,
-      completedRetrievals: json['completedRetrievals'] ?? 0,
-      recentRetrievals: json['recentRetrievals'] != null
-          ? (json['recentRetrievals'] as List)
-              .map((r) => RetrievalSummary.fromJson(r))
-              .toList()
-          : [],
-      lastRetrievalDate: json['lastRetrievalDate'] != null 
-          ? DateTime.parse(json['lastRetrievalDate']) 
-          : null,
-    );
-  }
+  factory ClientRetrievalReport.fromJson(Map<String, dynamic> json) =>
+      ClientRetrievalReport(
+        clientName:          json['clientName']          ?? '',
+        clientIdNumber:      json['clientIdNumber']      ?? '',
+        clientContact:       json['clientContact']       ?? '',
+        totalRetrievals:     json['totalRetrievals']     ?? 0,
+        pendingRetrievals:   json['pendingRetrievals']   ?? 0,
+        approvedRetrievals:  json['approvedRetrievals']  ?? 0,
+        completedRetrievals: json['completedRetrievals'] ?? 0,
+        recentRetrievals: json['recentRetrievals'] != null
+            ? (json['recentRetrievals'] as List)
+                .map((r) => RetrievalSummary.fromJson(r))
+                .toList()
+            : [],
+        lastRetrievalDate: json['lastRetrievalDate'] != null
+            ? DateTime.parse(json['lastRetrievalDate'])
+            : null,
+      );
 
-  Map<String, dynamic> toJson() {
-    return {
-      'clientName': clientName,
-      'clientIdNumber': clientIdNumber,
-      'clientContact': clientContact,
-      'totalRetrievals': totalRetrievals,
-      'pendingRetrievals': pendingRetrievals,
-      'approvedRetrievals': approvedRetrievals,
-      'completedRetrievals': completedRetrievals,
-      'recentRetrievals': recentRetrievals.map((r) => r.toJson()).toList(),
-      if (lastRetrievalDate != null) 'lastRetrievalDate': lastRetrievalDate!.toIso8601String(),
-    };
-  }
+  Map<String, dynamic> toJson() => {
+        'clientName':          clientName,
+        'clientIdNumber':      clientIdNumber,
+        'clientContact':       clientContact,
+        'totalRetrievals':     totalRetrievals,
+        'pendingRetrievals':   pendingRetrievals,
+        'approvedRetrievals':  approvedRetrievals,
+        'completedRetrievals': completedRetrievals,
+        'recentRetrievals': recentRetrievals.map((r) => r.toJson()).toList(),
+        if (lastRetrievalDate != null)
+          'lastRetrievalDate': lastRetrievalDate!.toIso8601String(),
+      };
 }
 
-/// Generic API response wrapper
 class ApiResponse<T> {
   final bool success;
   final String message;
@@ -614,27 +609,24 @@ class ApiResponse<T> {
   factory ApiResponse.fromJson(
     Map<String, dynamic> json,
     T Function(dynamic)? fromJsonT,
-  ) {
-    return ApiResponse<T>(
-      success: json['success'] ?? false,
-      message: json['message'] ?? '',
-      data: json['data'] != null && fromJsonT != null 
-          ? fromJsonT(json['data']) 
-          : json['data'],
-      totalRecords: json['totalRecords'],
-      currentPage: json['currentPage'],
-      totalPages: json['totalPages'],
-    );
-  }
+  ) =>
+      ApiResponse<T>(
+        success:      json['success'] ?? false,
+        message:      json['message'] ?? '',
+        data: json['data'] != null && fromJsonT != null
+            ? fromJsonT(json['data'])
+            : json['data'],
+        totalRecords: json['totalRecords'],
+        currentPage:  json['currentPage'],
+        totalPages:   json['totalPages'],
+      );
 
-  Map<String, dynamic> toJson() {
-    return {
-      'success': success,
-      'message': message,
-      if (data != null) 'data': data,
-      if (totalRecords != null) 'totalRecords': totalRecords,
-      if (currentPage != null) 'currentPage': currentPage,
-      if (totalPages != null) 'totalPages': totalPages,
-    };
-  }
+  Map<String, dynamic> toJson() => {
+        'success': success,
+        'message': message,
+        if (data         != null) 'data':         data,
+        if (totalRecords != null) 'totalRecords': totalRecords,
+        if (currentPage  != null) 'currentPage':  currentPage,
+        if (totalPages   != null) 'totalPages':   totalPages,
+      };
 }

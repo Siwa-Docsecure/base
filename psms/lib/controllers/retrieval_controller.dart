@@ -13,247 +13,183 @@ class RetrievalController extends GetxController {
   static RetrievalController get instance => Get.find();
 
   // ============================================
-  // REACTIVE VARIABLES
+  // REACTIVE STATE
   // ============================================
 
-  final RxList<RetrievalModel> retrievals = <RetrievalModel>[].obs;
-  final RxList<RetrievalModel> recentRetrievals = <RetrievalModel>[].obs;
-  final RxList<RetrievalModel> pendingRetrievals = <RetrievalModel>[].obs;
+  final RxList<RetrievalModel> retrievals          = <RetrievalModel>[].obs;
+  final RxList<RetrievalModel> recentRetrievals    = <RetrievalModel>[].obs;
+  final RxList<RetrievalModel> pendingRetrievals   = <RetrievalModel>[].obs;
   final RxList<RetrievalModel> myPendingRetrievals = <RetrievalModel>[].obs;
-  final RxList<RetrievalModel> clientRetrievals = <RetrievalModel>[].obs;
-  final RxList<RetrievalModel> boxRetrievals = <RetrievalModel>[].obs;
-  final Rx<RetrievalModel?> selectedRetrieval = Rx<RetrievalModel?>(null);
-  final Rx<RetrievalStats?> retrievalStats = Rx<RetrievalStats?>(null);
-  final RxBool isLoading = false.obs;
-  final RxString errorMessage = ''.obs;
-  final RxInt currentPage = 1.obs;
-  final RxInt totalPages = 1.obs;
-  final RxInt totalRetrievals = 0.obs;
+  final RxList<RetrievalModel> clientRetrievals    = <RetrievalModel>[].obs;
+  final RxList<RetrievalModel> boxRetrievals       = <RetrievalModel>[].obs;
+  final Rx<RetrievalModel?>    selectedRetrieval   = Rx<RetrievalModel?>(null);
+  final Rx<RetrievalStats?>    retrievalStats      = Rx<RetrievalStats?>(null);
 
-  final RxList<BoxModel> clientStoredBoxes = <BoxModel>[].obs;
-  final RxBool loadingBoxes = false.obs;
+  final RxList<ClientModel> clients           = <ClientModel>[].obs;
+  final RxList<BoxModel>    clientStoredBoxes = <BoxModel>[].obs;
+  /// Tracks the real active-clients total from the API pagination,
+  /// so the stat card shows the correct number regardless of page size.
+  final RxInt               activeClientsCount = 0.obs;
+  /// Boxes selected in the "New Retrieval" dialog (multi-select).
+  final RxList<BoxModel>    selectedBoxes     = <BoxModel>[].obs;
 
-  // Filter variables
-  final RxString searchQuery = ''.obs;
-  final RxInt clientFilter = 0.obs;
-  final RxInt boxFilter = 0.obs;
+  final RxBool   isLoading      = false.obs;
+  final RxBool   loadingBoxes   = false.obs;
+  final RxString errorMessage   = ''.obs;
+  final RxInt    currentPage    = 1.obs;
+  final RxInt    totalPages     = 1.obs;
+  final RxInt    totalRetrievals = 0.obs;
+
+  // Filters
+  final RxString searchQuery     = ''.obs;
+  final RxInt    clientFilter    = 0.obs;
+  final RxInt    boxFilter       = 0.obs;
   final RxString startDateFilter = ''.obs;
-  final RxString endDateFilter = ''.obs;
-  final RxString sortBy = 'retrieval_date'.obs;
-  final RxString sortOrder = 'DESC'.obs;
+  final RxString endDateFilter   = ''.obs;
+  final RxString sortBy          = 'retrieval_date'.obs;
+  final RxString sortOrder       = 'DESC'.obs;
 
-  // Clients list for dropdowns
-  final RxList<ClientModel> clients = <ClientModel>[].obs;
-
-  // Report data
-  final RxList<RetrievalSummary> summaryReport = <RetrievalSummary>[].obs;
-  final RxList<ClientRetrievalReport> clientReport =
-      <ClientRetrievalReport>[].obs;
+  // Reports
+  final RxList<RetrievalSummary>      summaryReport = <RetrievalSummary>[].obs;
+  final RxList<ClientRetrievalReport> clientReport  = <ClientRetrievalReport>[].obs;
 
   // ============================================
-  // PERMISSION CHECKS
+  // PERMISSIONS
   // ============================================
 
-  bool get canCreateRetrievals =>
-      AuthController.instance.hasPermission('canCreateRetrievals');
-  bool get canEditRetrievals =>
-      AuthController.instance.hasPermission('canCreateRetrievals');
-  bool get canDeleteRetrievals =>
-      AuthController.instance.currentUser.value?.role == 'admin';
-  bool get canSignRetrievals =>
-      AuthController.instance.hasPermission('canSignRetrievals');
-  bool get isClient =>
-      AuthController.instance.currentUser.value?.role == 'client';
+  bool get canCreateRetrievals => AuthController.instance.hasPermission('canCreateRetrievals');
+  bool get canEditRetrievals   => AuthController.instance.hasPermission('canCreateRetrievals');
+  bool get canDeleteRetrievals => AuthController.instance.currentUser.value?.role == 'admin';
+  bool get canSignRetrievals   => AuthController.instance.hasPermission('canSignRetrievals');
+  bool get isClient            => AuthController.instance.currentUser.value?.role == 'client';
 
   // ============================================
-  // HELPER METHODS
+  // BOX MULTI-SELECTION (dialog helpers)
   // ============================================
 
-  /// Get authenticated headers
-  Map<String, String> getAuthHeaders() {
-    return AuthController.instance.getAuthHeaders();
+  void toggleBoxSelection(BoxModel box) {
+    final idx = selectedBoxes.indexWhere((b) => b.boxId == box.boxId);
+    idx >= 0 ? selectedBoxes.removeAt(idx) : selectedBoxes.add(box);
   }
 
-  /// Safely parse JSON response
-  dynamic _parseJsonResponse(String responseBody) {
+  bool isBoxSelected(BoxModel box) => selectedBoxes.any((b) => b.boxId == box.boxId);
+  void clearSelectedBoxes()        => selectedBoxes.clear();
+
+  // ============================================
+  // INTERNAL HELPERS
+  // ============================================
+
+  Map<String, String> getAuthHeaders() => AuthController.instance.getAuthHeaders();
+
+  dynamic _parseJson(String body) {
     try {
-      return json.decode(responseBody);
+      return json.decode(body);
     } catch (e) {
-      print('JSON Parse Error: $e');
-      print(
-        'Response body: ${responseBody.substring(0, min(200, responseBody.length))}',
-      );
+      debugPrint('JSON parse error: $e — ${body.substring(0, min(200, body.length))}');
       return null;
     }
   }
 
-  /// Make API call with comprehensive error handling
-  Future<Map<String, dynamic>> _makeApiCall({
-    required Future<http.Response> Function() apiCall,
-    required String errorMessagePrefix,
+  Future<Map<String, dynamic>> _call({
+    required Future<http.Response> Function() request,
+    required String errorPrefix,
   }) async {
     try {
-      final response = await apiCall();
-      print('API Response Status: ${response.statusCode}');
-      print(
-        'API Response Body: ${response.body.substring(0, min(200, response.body.length))}...',
-      );
+      var response = await request();
 
-      if (response.statusCode == 200 || response.statusCode == 201) {
-        final responseData = _parseJsonResponse(response.body);
-
-        if (responseData == null) {
-          return {
-            'success': false,
-            'message': 'Invalid server response format',
-          };
-        }
-
-        if (responseData['status'] == 'success') {
-          return {
-            'success': true,
-            'data': responseData['data'],
-            'message': responseData['message'] ?? 'Operation successful',
-          };
-        } else {
-          return {
-            'success': false,
-            'message': responseData['message'] ?? 'Operation failed',
-          };
-        }
-      } else if (response.statusCode == 401) {
-        // Token expired, try to refresh
-        final authController = AuthController.instance;
-        final refreshSuccess = await authController.refreshAccessToken();
-
-        if (refreshSuccess) {
-          // Retry the API call with new token
-          final retryResponse = await apiCall();
-          final retryData = _parseJsonResponse(retryResponse.body);
-
-          if (retryResponse.statusCode == 200 ||
-              retryResponse.statusCode == 201) {
-            if (retryData != null && retryData['status'] == 'success') {
-              return {
-                'success': true,
-                'data': retryData['data'],
-                'message': retryData['message'] ?? 'Operation successful',
-              };
-            }
-          }
-        }
-
-        return {
-          'success': false,
-          'message': 'Authentication failed. Please login again.',
-        };
-      } else if (response.statusCode == 404) {
-        return {'success': false, 'message': 'Resource not found'};
-      } else if (response.statusCode >= 500) {
-        return {
-          'success': false,
-          'message': 'Server error. Please try again later.',
-        };
-      } else {
-        try {
-          final errorData = json.decode(response.body);
-          return {
-            'success': false,
-            'message': errorData['message'] ??
-                'Request failed with status ${response.statusCode}',
-          };
-        } catch (_) {
-          return {
-            'success': false,
-            'message': 'Request failed with status ${response.statusCode}',
-          };
+      if (response.statusCode == 401) {
+        final refreshed = await AuthController.instance.refreshAccessToken();
+        if (refreshed) response = await request();
+        if (response.statusCode == 401) {
+          return {'success': false, 'message': 'Authentication failed. Please login again.'};
         }
       }
+
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        final data = _parseJson(response.body);
+        if (data == null) return {'success': false, 'message': 'Invalid server response.'};
+        if (data['status'] == 'success') {
+          return {'success': true, 'data': data['data'], 'message': data['message'] ?? 'OK'};
+        }
+        return {'success': false, 'message': data['message'] ?? 'Operation failed.'};
+      }
+      if (response.statusCode == 404) return {'success': false, 'message': 'Resource not found.'};
+      if (response.statusCode >= 500) return {'success': false, 'message': 'Server error. Try again later.'};
+
+      try {
+        final err = json.decode(response.body);
+        return {'success': false, 'message': err['message'] ?? 'HTTP ${response.statusCode}'};
+      } catch (_) {
+        return {'success': false, 'message': 'HTTP ${response.statusCode}'};
+      }
     } catch (e) {
-      print('API Call Error: $e');
-      return {'success': false, 'message': 'Connection error: ${e.toString()}'};
+      debugPrint('$errorPrefix error: $e');
+      return {'success': false, 'message': 'Connection error: $e'};
     }
   }
 
+  void _snackError(String msg)   =>
+      Get.snackbar('Error',   msg, backgroundColor: Colors.red,   colorText: Colors.white);
+  void _snackSuccess(String msg) =>
+      Get.snackbar('Success', msg, backgroundColor: Colors.green, colorText: Colors.white);
+
+  /// Normalises the varied list-vs-object response shapes the API returns.
+  List<RetrievalModel> _parseRetrievalList(dynamic data) {
+    final List<dynamic> list = data is List ? data : (data['retrievals'] as List? ?? []);
+    return list.map((r) => RetrievalModel.fromJson(r)).toList();
+  }
+
   // ============================================
-  // INITIALIZATION & DATA LOADING
+  // INITIALIZATION
   // ============================================
 
   Future<void> initialize({bool forceRefresh = false}) async {
     try {
       isLoading.value = true;
       errorMessage.value = '';
-
-      print('Initializing RetrievalController...');
-
-      // Load data sequentially
-      await getAllRetrievals();
-      print('Retrievals loaded: ${retrievals.length}');
-
-      await getRetrievalStatistics();
-      print('Statistics loaded');
-
-      await getRecentRetrievals();
-      print('Recent retrievals loaded: ${recentRetrievals.length}');
-
-      // If client, load their pending retrievals
-      if (isClient) {
-        await getMyPendingRetrievals();
-        print('My pending retrievals loaded: ${myPendingRetrievals.length}');
-      } else {
-        await getPendingRetrievals();
-        print('Pending retrievals loaded: ${pendingRetrievals.length}');
-      }
-
-      await getClients();
-      print('Clients loaded: ${clients.length}');
-
-      print('Initialization complete');
+      await Future.wait([
+        getAllRetrievals(),
+        getRetrievalStatistics(),
+        getRecentRetrievals(),
+        getClients(),
+        isClient ? getMyPendingRetrievals() : getPendingRetrievals(),
+      ]);
     } catch (e) {
-      print('Initialize error: $e');
       errorMessage.value = 'Failed to initialize: $e';
-      Get.snackbar(
-        'Error',
-        'Failed to load retrieval data: $e',
-        backgroundColor: Colors.red,
-        colorText: Colors.white,
-      );
+      _snackError('Failed to load retrieval data: $e');
     } finally {
       isLoading.value = false;
     }
   }
 
-  /// Get all clients for dropdown/filters
+  // ============================================
+  // CLIENTS & BOXES
+  // ============================================
+
   Future<void> getClients() async {
-    try {
-      final result = await _makeApiCall(
-        apiCall: () => http.get(
-          Uri.parse('${ApiConstants.baseUrl}${ApiConstants.clients}'),
-          headers: getAuthHeaders(),
-        ),
-        errorMessagePrefix: 'Failed to fetch clients',
-      );
+    final result = await _call(
+      request: () => http.get(
+        // limit=500 fetches all clients in one shot for the dropdown.
+        // The pagination totalItems is stored separately as activeClientsCount
+        // so the stat card is accurate even if the list is ever paginated.
+        Uri.parse('${ApiConstants.baseUrl}${ApiConstants.clients}')
+            .replace(queryParameters: {'limit': '500', 'includeInactive': 'false'}),
+        headers: getAuthHeaders(),
+      ),
+      errorPrefix: 'getClients',
+    );
+    if (result['success'] && result['data'] != null) {
+      final raw  = result['data'];
+      final list = raw is List ? raw : (raw['clients'] as List? ?? []);
+      clients.value = list.map((c) => ClientModel.fromJson(c)).toList();
 
-      if (result['success'] && result['data'] != null) {
-        List<dynamic> clientsData;
-
-        // Handle different response structures
-        if (result['data'] is List) {
-          clientsData = result['data'];
-        } else if (result['data']['clients'] != null) {
-          clientsData = result['data']['clients'] as List<dynamic>;
-        } else {
-          clientsData = [];
-        }
-
-        clients.value =
-            clientsData.map((client) => ClientModel.fromJson(client)).toList();
-      } else {
-        errorMessage.value = result['message'];
-      }
-    } catch (e) {
-      print('Error fetching clients: $e');
-      errorMessage.value = 'Failed to load clients: $e';
+      // Prefer pagination.totalItems (authoritative active-client count from DB).
+      // Fall back to the list length if pagination is absent.
+      final pagination = raw is Map ? raw['pagination'] : null;
+      activeClientsCount.value =
+          (pagination?['totalItems'] as int?) ?? clients.length;
+    } else {
+      errorMessage.value = result['message'];
     }
   }
 
@@ -261,259 +197,294 @@ class RetrievalController extends GetxController {
     try {
       loadingBoxes.value = true;
       clientStoredBoxes.clear();
+      clearSelectedBoxes(); // reset selection whenever the client changes
 
-      final uri = Uri.parse(
-        '${ApiConstants.baseUrl}${ApiConstants.boxes}',
-      ).replace(queryParameters: {
-        'clientId': clientId.toString(),
-        'status': 'stored',
-        'limit': '1000',
+      final uri = Uri.parse('${ApiConstants.baseUrl}${ApiConstants.boxes}')
+          .replace(queryParameters: {
+        'clientId': '$clientId',
+        'status':   'stored',
+        'limit':    '1000',
       });
 
-      final result = await _makeApiCall(
-        apiCall: () => http.get(uri, headers: getAuthHeaders()),
-        errorMessagePrefix: 'Failed to fetch boxes',
+      final result = await _call(
+        request: () => http.get(uri, headers: getAuthHeaders()),
+        errorPrefix: 'getClientStoredBoxes',
       );
 
       if (result['success'] && result['data'] != null) {
-        final data = result['data'];
-        final List<BoxModel> boxes = (data['boxes'] as List)
-            .map((boxJson) => BoxModel.fromJson(boxJson))
+        clientStoredBoxes.value = (result['data']['boxes'] as List)
+            .map((b) => BoxModel.fromJson(b))
             .toList();
-        clientStoredBoxes.value = boxes;
       } else {
         errorMessage.value = result['message'];
-        Get.snackbar('Error', result['message'],
-            backgroundColor: Colors.red, colorText: Colors.white);
+        _snackError(result['message']);
       }
-    } catch (e) {
-      errorMessage.value = 'Connection error: $e';
-      Get.snackbar('Error', 'Connection error: $e',
-          backgroundColor: Colors.red, colorText: Colors.white);
     } finally {
       loadingBoxes.value = false;
     }
   }
 
   // ============================================
-  // RETRIEVAL CRUD OPERATIONS
+  // RETRIEVAL READS
   // ============================================
 
-  /// Get all retrievals with filtering and pagination
   Future<void> getAllRetrievals({
-    int page = 1,
-    int limit = 50,
-    String? search,
-    int? clientId,
-    int? boxId,
-    String? startDate,
-    String? endDate,
-    String? sortBy,
-    String? sortOrder,
+    int page = 1, int limit = 50,
+    String? search, int? clientId, int? boxId,
+    String? startDate, String? endDate,
+    String? sortBy, String? sortOrder,
   }) async {
     try {
       isLoading.value = true;
       errorMessage.value = '';
 
-      final params = <String, String>{
-        'page': page.toString(),
-        'limit': limit.toString(),
-      };
+      final params = <String, String>{'page': '$page', 'limit': '$limit'};
+      if (search?.isNotEmpty == true)     params['search']    = search!;
+      if ((clientId ?? 0) > 0)           params['clientId']  = '$clientId';
+      if ((boxId ?? 0) > 0)              params['boxId']     = '$boxId';
+      if (startDate?.isNotEmpty == true)  params['startDate'] = startDate!;
+      if (endDate?.isNotEmpty == true)    params['endDate']   = endDate!;
+      if (sortBy?.isNotEmpty == true)     params['sortBy']    = sortBy!;
+      if (sortOrder?.isNotEmpty == true)  params['sortOrder'] = sortOrder!;
 
-      if (search != null && search.isNotEmpty) params['search'] = search;
-      if (clientId != null && clientId > 0) {
-        params['clientId'] = clientId.toString();
-      }
-      if (boxId != null && boxId > 0) params['boxId'] = boxId.toString();
-      if (startDate != null && startDate.isNotEmpty) {
-        params['startDate'] = startDate;
-      }
-      if (endDate != null && endDate.isNotEmpty) params['endDate'] = endDate;
-      if (sortBy != null && sortBy.isNotEmpty) params['sortBy'] = sortBy;
-      if (sortOrder != null && sortOrder.isNotEmpty) {
-        params['sortOrder'] = sortOrder;
-      }
+      final uri = Uri.parse('${ApiConstants.baseUrl}${ApiConstants.retrievals}')
+          .replace(queryParameters: params);
 
-      final uri = Uri.parse(
-        '${ApiConstants.baseUrl}${ApiConstants.retrievals}',
-      ).replace(queryParameters: params);
-
-      final result = await _makeApiCall(
-        apiCall: () => http.get(uri, headers: getAuthHeaders()),
-        errorMessagePrefix: 'Failed to fetch retrievals',
+      final result = await _call(
+        request: () => http.get(uri, headers: getAuthHeaders()),
+        errorPrefix: 'getAllRetrievals',
       );
 
       if (result['success'] && result['data'] != null) {
         final data = result['data'];
-
-        // Parse retrievals
-        final retrievalsData = data['retrievals'] as List<dynamic>;
-        retrievals.value =
-            retrievalsData.map((ret) => RetrievalModel.fromJson(ret)).toList();
-
-        // Parse pagination
-        if (data['pagination'] != null) {
-          currentPage.value = data['pagination']['page'] ?? 1;
-          totalPages.value = data['pagination']['totalPages'] ?? 1;
-          totalRetrievals.value = data['pagination']['total'] ?? 0;
+        retrievals.value = _parseRetrievalList(data);
+        final p = data['pagination'];
+        if (p != null) {
+          currentPage.value     = p['page']       ?? 1;
+          totalPages.value      = p['totalPages'] ?? 1;
+          totalRetrievals.value = p['total']      ?? 0;
         }
       } else {
         errorMessage.value = result['message'];
-        Get.snackbar(
-          'Error',
-          result['message'],
-          backgroundColor: Colors.red,
-          colorText: Colors.white,
-        );
+        _snackError(result['message']);
       }
-    } catch (e) {
-      errorMessage.value = 'Connection error: $e';
-      Get.snackbar(
-        'Error',
-        'Connection error: $e',
-        backgroundColor: Colors.red,
-        colorText: Colors.white,
-      );
     } finally {
       isLoading.value = false;
     }
   }
 
-  /// Get retrieval by ID
   Future<void> getRetrievalById(int retrievalId) async {
     try {
       isLoading.value = true;
-      errorMessage.value = '';
-
-      final result = await _makeApiCall(
-        apiCall: () => http.get(
-          Uri.parse(
-            '${ApiConstants.baseUrl}${ApiConstants.retrievalById(retrievalId.toString())}',
-          ),
+      final result = await _call(
+        request: () => http.get(
+          Uri.parse('${ApiConstants.baseUrl}${ApiConstants.retrievalById(retrievalId.toString())}'),
           headers: getAuthHeaders(),
         ),
-        errorMessagePrefix: 'Failed to fetch retrieval',
+        errorPrefix: 'getRetrievalById',
       );
-
       if (result['success'] && result['data'] != null) {
         selectedRetrieval.value = RetrievalModel.fromJson(result['data']);
       } else {
         errorMessage.value = result['message'];
-        Get.snackbar(
-          'Error',
-          result['message'],
-          backgroundColor: Colors.red,
-          colorText: Colors.white,
-        );
+        _snackError(result['message']);
       }
-    } catch (e) {
-      errorMessage.value = 'Connection error: $e';
-      Get.snackbar(
-        'Error',
-        'Connection error: $e',
-        backgroundColor: Colors.red,
-        colorText: Colors.white,
-      );
     } finally {
       isLoading.value = false;
     }
   }
 
-  /// Create new retrieval
+  Future<void> getRecentRetrievals({int limit = 10}) async {
+    final uri = Uri.parse('${ApiConstants.baseUrl}${ApiConstants.recentRetrievals}')
+        .replace(queryParameters: {'limit': '$limit'});
+    final result = await _call(
+      request: () => http.get(uri, headers: getAuthHeaders()),
+      errorPrefix: 'getRecentRetrievals',
+    );
+    if (result['success'] && result['data'] != null) {
+      recentRetrievals.value = _parseRetrievalList(result['data']);
+    }
+  }
+
+  Future<void> getPendingRetrievals({int? clientId, int limit = 50}) async {
+    final params = {'limit': '$limit'};
+    if ((clientId ?? 0) > 0) params['clientId'] = '$clientId';
+    final uri = Uri.parse('${ApiConstants.baseUrl}${ApiConstants.pendingRetrievals}')
+        .replace(queryParameters: params);
+    final result = await _call(
+      request: () => http.get(uri, headers: getAuthHeaders()),
+      errorPrefix: 'getPendingRetrievals',
+    );
+    if (result['success'] && result['data'] != null) {
+      pendingRetrievals.value = _parseRetrievalList(result['data']);
+    }
+  }
+
+  Future<void> getMyPendingRetrievals() async {
+    final result = await _call(
+      request: () => http.get(
+        Uri.parse('${ApiConstants.baseUrl}${ApiConstants.myPendingRetrievals}'),
+        headers: getAuthHeaders(),
+      ),
+      errorPrefix: 'getMyPendingRetrievals',
+    );
+    if (result['success'] && result['data'] != null) {
+      myPendingRetrievals.value = _parseRetrievalList(result['data']);
+    }
+  }
+
+  Future<void> getRetrievalsByClient(int clientId) async {
+    try {
+      isLoading.value = true;
+      final result = await _call(
+        request: () => http.get(
+          Uri.parse('${ApiConstants.baseUrl}${ApiConstants.retrievalsByClient(clientId.toString())}'),
+          headers: getAuthHeaders(),
+        ),
+        errorPrefix: 'getRetrievalsByClient',
+      );
+      if (result['success'] && result['data'] != null) {
+        clientRetrievals.value = _parseRetrievalList(result['data']);
+      } else {
+        errorMessage.value = result['message'];
+        _snackError(result['message']);
+      }
+    } finally {
+      isLoading.value = false;
+    }
+  }
+
+  Future<void> getRetrievalsByBox(int boxId) async {
+    try {
+      isLoading.value = true;
+      final result = await _call(
+        request: () => http.get(
+          Uri.parse('${ApiConstants.baseUrl}${ApiConstants.retrievalsByBox(boxId.toString())}'),
+          headers: getAuthHeaders(),
+        ),
+        errorPrefix: 'getRetrievalsByBox',
+      );
+      if (result['success'] && result['data'] != null) {
+        boxRetrievals.value = _parseRetrievalList(result['data']);
+      } else {
+        errorMessage.value = result['message'];
+        _snackError(result['message']);
+      }
+    } finally {
+      isLoading.value = false;
+    }
+  }
+
+  Future<void> getRetrievalStatistics() async {
+    final result = await _call(
+      request: () => http.get(
+        Uri.parse('${ApiConstants.baseUrl}${ApiConstants.retrievalStats}'),
+        headers: getAuthHeaders(),
+      ),
+      errorPrefix: 'getRetrievalStatistics',
+    );
+    if (result['success'] && result['data'] != null) {
+      retrievalStats.value = RetrievalStats.fromJson(result['data']);
+    }
+  }
+
+  // ============================================
+  // RETRIEVAL WRITES
+  // ============================================
+
+  /// Creates a single retrieval.
   Future<bool> createRetrieval(CreateRetrievalRequest request) async {
     try {
       isLoading.value = true;
       errorMessage.value = '';
-
-      final result = await _makeApiCall(
-        apiCall: () => http.post(
+      final result = await _call(
+        request: () => http.post(
           Uri.parse('${ApiConstants.baseUrl}${ApiConstants.retrievals}'),
-          headers: {
-            ...getAuthHeaders(),
-            'Content-Type': 'application/json',
-          },
+          headers: {...getAuthHeaders(), 'Content-Type': 'application/json'},
           body: json.encode(request.toJson()),
         ),
-        errorMessagePrefix: 'Failed to create retrieval',
+        errorPrefix: 'createRetrieval',
       );
-
       if (result['success']) {
-        Get.snackbar(
-          'Success',
-          result['message'],
-          backgroundColor: Colors.green,
-          colorText: Colors.white,
-        );
-        await getAllRetrievals(); // Refresh list
-        await getPendingRetrievals(); // Refresh pending list
+        _snackSuccess(result['message']);
+        await Future.wait([getAllRetrievals(), getPendingRetrievals()]);
         return true;
-      } else {
-        errorMessage.value = result['message'];
-        Get.snackbar(
-          'Error',
-          result['message'],
-          backgroundColor: Colors.red,
-          colorText: Colors.white,
-        );
-        return false;
       }
-    } catch (e) {
-      errorMessage.value = 'Connection error: $e';
-      Get.snackbar(
-        'Error',
-        'Connection error: $e',
-        backgroundColor: Colors.red,
-        colorText: Colors.white,
-      );
+      errorMessage.value = result['message'];
+      _snackError(result['message']);
       return false;
     } finally {
       isLoading.value = false;
     }
   }
 
-  /// Delete retrieval (Admin only)
+  /// Creates one retrieval per box in [selectedBoxes]. Returns success count.
+  Future<int> createRetrievalsForSelectedBoxes({
+    required int    clientId,
+    required String retrievalDate,
+    required String retrievedBy,
+    required String reason,
+    String? clientSignature,
+    String? staffSignature,
+  }) async {
+    if (selectedBoxes.isEmpty) return 0;
+
+    isLoading.value = true;
+    int successCount = 0;
+    final failedBoxes = <String>[];
+
+    for (final box in List.of(selectedBoxes)) {
+      final result = await _call(
+        request: () => http.post(
+          Uri.parse('${ApiConstants.baseUrl}${ApiConstants.retrievals}'),
+          headers: {...getAuthHeaders(), 'Content-Type': 'application/json'},
+          body: json.encode(CreateRetrievalRequest(
+            clientId:        clientId,
+            boxId:           box.boxId,
+            retrievalDate:   retrievalDate,
+            retrievedBy:     retrievedBy,
+            reason:          reason,
+            staffSignature:  staffSignature,
+          ).toJson()),
+        ),
+        errorPrefix: 'createRetrieval box ${box.boxNumber}',
+      );
+      result['success'] ? successCount++ : failedBoxes.add(box.boxNumber);
+    }
+
+    isLoading.value = false;
+
+    if (successCount > 0) await Future.wait([getAllRetrievals(), getPendingRetrievals()]);
+    if (failedBoxes.isNotEmpty) {
+      Get.snackbar(
+        'Partial Failure',
+        'Could not create retrievals for: ${failedBoxes.join(', ')}',
+        backgroundColor: Colors.orange,
+        colorText: Colors.white,
+        duration: const Duration(seconds: 5),
+      );
+    }
+    return successCount;
+  }
+
   Future<bool> deleteRetrieval(int retrievalId) async {
     try {
       isLoading.value = true;
       errorMessage.value = '';
-
-      final result = await _makeApiCall(
-        apiCall: () => http.delete(
-          Uri.parse(
-            '${ApiConstants.baseUrl}${ApiConstants.retrievalById(retrievalId.toString())}',
-          ),
+      final result = await _call(
+        request: () => http.delete(
+          Uri.parse('${ApiConstants.baseUrl}${ApiConstants.retrievalById(retrievalId.toString())}'),
           headers: getAuthHeaders(),
         ),
-        errorMessagePrefix: 'Failed to delete retrieval',
+        errorPrefix: 'deleteRetrieval',
       );
-
       if (result['success']) {
-        Get.snackbar(
-          'Success',
-          result['message'],
-          backgroundColor: Colors.green,
-          colorText: Colors.white,
-        );
-        retrievals.removeWhere((ret) => ret.retrievalId == retrievalId);
+        _snackSuccess(result['message']);
+        retrievals.removeWhere((r) => r.retrievalId == retrievalId);
         return true;
-      } else {
-        errorMessage.value = result['message'];
-        Get.snackbar(
-          'Error',
-          result['message'],
-          backgroundColor: Colors.red,
-          colorText: Colors.white,
-        );
-        return false;
       }
-    } catch (e) {
-      errorMessage.value = 'Connection error: $e';
-      Get.snackbar(
-        'Error',
-        'Connection error: $e',
-        backgroundColor: Colors.red,
-        colorText: Colors.white,
-      );
+      errorMessage.value = result['message'];
+      _snackError(result['message']);
       return false;
     } finally {
       isLoading.value = false;
@@ -521,261 +492,58 @@ class RetrievalController extends GetxController {
   }
 
   // ============================================
-  // STATISTICS & SPECIAL RETRIEVALS
+  // STATUS OPERATIONS
   // ============================================
 
-  /// Get retrieval statistics
-  Future<void> getRetrievalStatistics() async {
+  /// Patches the retrieval status on the server and updates all in-memory lists
+  /// immediately so the UI reflects the change without a full reload.
+  /// Endpoint: PATCH /api/retrievals/:id/status   body: { "status": "..." }
+  Future<bool> updateRetrievalStatus(int retrievalId, String status) async {
     try {
       isLoading.value = true;
       errorMessage.value = '';
 
-      final result = await _makeApiCall(
-        apiCall: () => http.get(
+      final result = await _call(
+        request: () => http.patch(
+          // Use the dedicated /status sub-route, not the base /:id route.
           Uri.parse(
-            '${ApiConstants.baseUrl}${ApiConstants.retrievalStats}',
+            '${ApiConstants.baseUrl}${ApiConstants.retrievalById(retrievalId.toString())}/status',
           ),
-          headers: getAuthHeaders(),
+          headers: {...getAuthHeaders(), 'Content-Type': 'application/json'},
+          body: json.encode({'status': status}),
         ),
-        errorMessagePrefix: 'Failed to fetch statistics',
+        errorPrefix: 'updateRetrievalStatus',
       );
 
-      if (result['success'] && result['data'] != null) {
-        retrievalStats.value = RetrievalStats.fromJson(result['data']);
-      } else {
-        errorMessage.value = result['message'];
-      }
-    } catch (e) {
-      errorMessage.value = 'Connection error: $e';
-    } finally {
-      isLoading.value = false;
-    }
-  }
-
-  /// Get recent retrievals
-  Future<void> getRecentRetrievals({int limit = 10}) async {
-    try {
-      isLoading.value = true;
-      errorMessage.value = '';
-
-      final params = {'limit': limit.toString()};
-      final uri = Uri.parse(
-        '${ApiConstants.baseUrl}${ApiConstants.recentRetrievals}',
-      ).replace(queryParameters: params);
-
-      final result = await _makeApiCall(
-        apiCall: () => http.get(uri, headers: getAuthHeaders()),
-        errorMessagePrefix: 'Failed to fetch recent retrievals',
-      );
-
-      if (result['success'] && result['data'] != null) {
-        final retrievalsData = result['data'] as List<dynamic>;
-        recentRetrievals.value =
-            retrievalsData.map((ret) => RetrievalModel.fromJson(ret)).toList();
-      } else {
-        errorMessage.value = result['message'];
-      }
-    } catch (e) {
-      errorMessage.value = 'Connection error: $e';
-    } finally {
-      isLoading.value = false;
-    }
-  }
-
-  /// Get pending retrievals (awaiting client signature) - Admin/Staff view
-  Future<void> getPendingRetrievals({int? clientId, int limit = 50}) async {
-    try {
-      isLoading.value = true;
-      errorMessage.value = '';
-
-      final params = {'limit': limit.toString()};
-      if (clientId != null && clientId > 0) {
-        params['clientId'] = clientId.toString();
-      }
-
-      final uri = Uri.parse(
-        '${ApiConstants.baseUrl}${ApiConstants.pendingRetrievals}',
-      ).replace(queryParameters: params);
-
-      final result = await _makeApiCall(
-        apiCall: () => http.get(uri, headers: getAuthHeaders()),
-        errorMessagePrefix: 'Failed to fetch pending retrievals',
-      );
-
-      if (result['success'] && result['data'] != null) {
-        final data = result['data'];
-
-        // Handle different response structures
-        List<dynamic> retrievalsData;
-        if (data is List) {
-          retrievalsData = data;
-        } else if (data['retrievals'] != null) {
-          retrievalsData = data['retrievals'] as List<dynamic>;
-        } else {
-          retrievalsData = [];
+      if (result['success']) {
+        // Patch every in-memory list that may contain this retrieval.
+        for (final list in [
+          retrievals, pendingRetrievals, recentRetrievals,
+          clientRetrievals, boxRetrievals, myPendingRetrievals,
+        ]) {
+          final idx = list.indexWhere((r) => r.retrievalId == retrievalId);
+          if (idx >= 0) list[idx] = list[idx].copyWith(status: status);
         }
-
-        pendingRetrievals.value =
-            retrievalsData.map((ret) => RetrievalModel.fromJson(ret)).toList();
-      } else {
-        errorMessage.value = result['message'];
-      }
-    } catch (e) {
-      errorMessage.value = 'Connection error: $e';
-    } finally {
-      isLoading.value = false;
-    }
-  }
-
-  /// Get my pending retrievals (Client view - awaiting their signature)
-  Future<void> getMyPendingRetrievals() async {
-    try {
-      isLoading.value = true;
-      errorMessage.value = '';
-
-      final result = await _makeApiCall(
-        apiCall: () => http.get(
-          Uri.parse(
-            '${ApiConstants.baseUrl}${ApiConstants.myPendingRetrievals}',
-          ),
-          headers: getAuthHeaders(),
-        ),
-        errorMessagePrefix: 'Failed to fetch my pending retrievals',
-      );
-
-      if (result['success'] && result['data'] != null) {
-        final data = result['data'];
-
-        // Handle different response structures
-        List<dynamic> retrievalsData;
-        if (data is List) {
-          retrievalsData = data;
-        } else if (data['retrievals'] != null) {
-          retrievalsData = data['retrievals'] as List<dynamic>;
-        } else {
-          retrievalsData = [];
+        if (selectedRetrieval.value?.retrievalId == retrievalId) {
+          selectedRetrieval.value =
+              selectedRetrieval.value!.copyWith(status: status);
         }
-
-        myPendingRetrievals.value =
-            retrievalsData.map((ret) => RetrievalModel.fromJson(ret)).toList();
-      } else {
-        errorMessage.value = result['message'];
+        _snackSuccess('Status updated to ${status.toUpperCase()}');
+        return true;
       }
-    } catch (e) {
-      errorMessage.value = 'Connection error: $e';
-    } finally {
-      isLoading.value = false;
-    }
-  }
 
-  /// Get retrievals by client
-  Future<void> getRetrievalsByClient(int clientId) async {
-    try {
-      isLoading.value = true;
-      errorMessage.value = '';
-
-      final result = await _makeApiCall(
-        apiCall: () => http.get(
-          Uri.parse(
-            '${ApiConstants.baseUrl}${ApiConstants.retrievalsByClient(clientId.toString())}',
-          ),
-          headers: getAuthHeaders(),
-        ),
-        errorMessagePrefix: 'Failed to fetch client retrievals',
-      );
-
-      if (result['success'] && result['data'] != null) {
-        // Handle different response structures
-        List<dynamic> retrievalsData;
-        if (result['data'] is List) {
-          retrievalsData = result['data'];
-        } else if (result['data']['retrievals'] != null) {
-          retrievalsData = result['data']['retrievals'] as List<dynamic>;
-        } else {
-          retrievalsData = [];
-        }
-
-        clientRetrievals.value =
-            retrievalsData.map((ret) => RetrievalModel.fromJson(ret)).toList();
-      } else {
-        errorMessage.value = result['message'];
-        Get.snackbar(
-          'Error',
-          result['message'],
-          backgroundColor: Colors.red,
-          colorText: Colors.white,
-        );
-      }
-    } catch (e) {
-      errorMessage.value = 'Connection error: $e';
-      Get.snackbar(
-        'Error',
-        'Connection error: $e',
-        backgroundColor: Colors.red,
-        colorText: Colors.white,
-      );
-    } finally {
-      isLoading.value = false;
-    }
-  }
-
-  /// Get retrievals by box (retrieval history for a specific box)
-  Future<void> getRetrievalsByBox(int boxId) async {
-    try {
-      isLoading.value = true;
-      errorMessage.value = '';
-
-      final result = await _makeApiCall(
-        apiCall: () => http.get(
-          Uri.parse(
-            '${ApiConstants.baseUrl}${ApiConstants.retrievalsByBox(boxId.toString())}',
-          ),
-          headers: getAuthHeaders(),
-        ),
-        errorMessagePrefix: 'Failed to fetch box retrievals',
-      );
-
-      if (result['success'] && result['data'] != null) {
-        // Handle different response structures
-        List<dynamic> retrievalsData;
-        if (result['data'] is List) {
-          retrievalsData = result['data'];
-        } else if (result['data']['retrievals'] != null) {
-          retrievalsData = result['data']['retrievals'] as List<dynamic>;
-        } else {
-          retrievalsData = [];
-        }
-
-        boxRetrievals.value =
-            retrievalsData.map((ret) => RetrievalModel.fromJson(ret)).toList();
-      } else {
-        errorMessage.value = result['message'];
-        Get.snackbar(
-          'Error',
-          result['message'],
-          backgroundColor: Colors.red,
-          colorText: Colors.white,
-        );
-      }
-    } catch (e) {
-      errorMessage.value = 'Connection error: $e';
-      Get.snackbar(
-        'Error',
-        'Connection error: $e',
-        backgroundColor: Colors.red,
-        colorText: Colors.white,
-      );
+      errorMessage.value = result['message'];
+      _snackError(result['message']);
+      return false;
     } finally {
       isLoading.value = false;
     }
   }
 
   // ============================================
-  // SIGNATURE OPERATIONS
+  // SIGNATURE & PDF OPERATIONS
   // ============================================
 
-  /// Update retrieval signatures (client or staff)
-  /// Note: Client signature triggers box status change to 'retrieved'
   Future<bool> updateSignatures({
     required int retrievalId,
     String? clientSignature,
@@ -785,166 +553,71 @@ class RetrievalController extends GetxController {
       isLoading.value = true;
       errorMessage.value = '';
 
-      final requestBody = <String, dynamic>{};
-      if (clientSignature != null) {
-        requestBody['clientSignature'] = clientSignature;
-      }
-      if (staffSignature != null) {
-        requestBody['staffSignature'] = staffSignature;
-      }
+      final body = <String, dynamic>{};
+      if (clientSignature != null) body['clientSignature'] = clientSignature;
+      if (staffSignature  != null) body['staffSignature']  = staffSignature;
 
-      final result = await _makeApiCall(
-        apiCall: () => http.patch(
-          Uri.parse(
-            '${ApiConstants.baseUrl}${ApiConstants.retrievalSignatures(retrievalId.toString())}',
-          ),
-          headers: {
-            ...getAuthHeaders(),
-            'Content-Type': 'application/json',
-          },
-          body: json.encode(requestBody),
+      final result = await _call(
+        request: () => http.patch(
+          Uri.parse('${ApiConstants.baseUrl}${ApiConstants.retrievalSignatures(retrievalId.toString())}'),
+          headers: {...getAuthHeaders(), 'Content-Type': 'application/json'},
+          body: json.encode(body),
         ),
-        errorMessagePrefix: 'Failed to update signatures',
+        errorPrefix: 'updateSignatures',
       );
 
       if (result['success']) {
-        Get.snackbar(
-          'Success',
-          result['message'],
-          backgroundColor: Colors.green,
-          colorText: Colors.white,
-          duration: const Duration(seconds: 4),
-        );
-
-        // Refresh data
-        await getRetrievalById(retrievalId);
-        await getAllRetrievals();
-        if (isClient) {
-          await getMyPendingRetrievals();
-        } else {
-          await getPendingRetrievals();
-        }
-
+        _snackSuccess(result['message']);
+        await Future.wait([
+          getRetrievalById(retrievalId),
+          getAllRetrievals(),
+          isClient ? getMyPendingRetrievals() : getPendingRetrievals(),
+        ]);
         return true;
-      } else {
-        errorMessage.value = result['message'];
-        Get.snackbar(
-          'Error',
-          result['message'],
-          backgroundColor: Colors.red,
-          colorText: Colors.white,
-        );
-        return false;
       }
-    } catch (e) {
-      errorMessage.value = 'Connection error: $e';
-      Get.snackbar(
-        'Error',
-        'Connection error: $e',
-        backgroundColor: Colors.red,
-        colorText: Colors.white,
-      );
+      errorMessage.value = result['message'];
+      _snackError(result['message']);
       return false;
     } finally {
       isLoading.value = false;
     }
   }
 
-  /// Update PDF path for retrieval
   Future<bool> updatePdfPath(int retrievalId, String pdfPath) async {
     try {
       isLoading.value = true;
       errorMessage.value = '';
-
-      final result = await _makeApiCall(
-        apiCall: () => http.patch(
-          Uri.parse(
-            '${ApiConstants.baseUrl}${ApiConstants.retrievalPdf(retrievalId.toString())}',
-          ),
-          headers: {
-            ...getAuthHeaders(),
-            'Content-Type': 'application/json',
-          },
+      final result = await _call(
+        request: () => http.patch(
+          Uri.parse('${ApiConstants.baseUrl}${ApiConstants.retrievalPdf(retrievalId.toString())}'),
+          headers: {...getAuthHeaders(), 'Content-Type': 'application/json'},
           body: json.encode({'pdfPath': pdfPath}),
         ),
-        errorMessagePrefix: 'Failed to update PDF path',
+        errorPrefix: 'updatePdfPath',
       );
-
-      if (result['success']) {
-        Get.snackbar(
-          'Success',
-          result['message'],
-          backgroundColor: Colors.green,
-          colorText: Colors.white,
-        );
-        return true;
-      } else {
-        errorMessage.value = result['message'];
-        Get.snackbar(
-          'Error',
-          result['message'],
-          backgroundColor: Colors.red,
-          colorText: Colors.white,
-        );
-        return false;
-      }
-    } catch (e) {
-      errorMessage.value = 'Connection error: $e';
-      Get.snackbar(
-        'Error',
-        'Connection error: $e',
-        backgroundColor: Colors.red,
-        colorText: Colors.white,
-      );
+      if (result['success']) { _snackSuccess(result['message']); return true; }
+      errorMessage.value = result['message'];
+      _snackError(result['message']);
       return false;
     } finally {
       isLoading.value = false;
     }
   }
 
-  /// Manually mark box as retrieved (override/manual process)
-  /// Normally done via client signature, this is for exceptional cases
   Future<bool> markBoxAsRetrieved(int boxId) async {
     try {
       isLoading.value = true;
       errorMessage.value = '';
-
-      final result = await _makeApiCall(
-        apiCall: () => http.patch(
-          Uri.parse(
-            '${ApiConstants.baseUrl}${ApiConstants.markBoxRetrieved(boxId.toString())}',
-          ),
+      final result = await _call(
+        request: () => http.patch(
+          Uri.parse('${ApiConstants.baseUrl}${ApiConstants.markBoxRetrieved(boxId.toString())}'),
           headers: getAuthHeaders(),
         ),
-        errorMessagePrefix: 'Failed to mark box as retrieved',
+        errorPrefix: 'markBoxAsRetrieved',
       );
-
-      if (result['success']) {
-        Get.snackbar(
-          'Success',
-          result['message'],
-          backgroundColor: Colors.green,
-          colorText: Colors.white,
-        );
-        return true;
-      } else {
-        errorMessage.value = result['message'];
-        Get.snackbar(
-          'Error',
-          result['message'],
-          backgroundColor: Colors.red,
-          colorText: Colors.white,
-        );
-        return false;
-      }
-    } catch (e) {
-      errorMessage.value = 'Connection error: $e';
-      Get.snackbar(
-        'Error',
-        'Connection error: $e',
-        backgroundColor: Colors.red,
-        colorText: Colors.white,
-      );
+      if (result['success']) { _snackSuccess(result['message']); return true; }
+      errorMessage.value = result['message'];
+      _snackError(result['message']);
       return false;
     } finally {
       isLoading.value = false;
@@ -952,191 +625,117 @@ class RetrievalController extends GetxController {
   }
 
   // ============================================
-  // REPORTING OPERATIONS
+  // REPORTS
   // ============================================
 
-  /// Get summary report by date range
-  Future<void> getSummaryReport({
-    String? startDate,
-    String? endDate,
-    int? clientId,
-  }) async {
+  Future<void> getSummaryReport({String? startDate, String? endDate, int? clientId}) async {
     try {
       isLoading.value = true;
-      errorMessage.value = '';
-
       final params = <String, String>{};
-      if (startDate != null && startDate.isNotEmpty) {
-        params['startDate'] = startDate;
-      }
-      if (endDate != null && endDate.isNotEmpty) params['endDate'] = endDate;
-      if (clientId != null && clientId > 0) {
-        params['clientId'] = clientId.toString();
-      }
+      if (startDate?.isNotEmpty == true) params['startDate'] = startDate!;
+      if (endDate?.isNotEmpty == true)   params['endDate']   = endDate!;
+      if ((clientId ?? 0) > 0)          params['clientId']  = '$clientId';
 
-      final uri = Uri.parse(
-        '${ApiConstants.baseUrl}${ApiConstants.retrievalSummaryReport}',
-      ).replace(queryParameters: params);
-
-      final result = await _makeApiCall(
-        apiCall: () => http.get(uri, headers: getAuthHeaders()),
-        errorMessagePrefix: 'Failed to fetch summary report',
+      final uri = Uri.parse('${ApiConstants.baseUrl}${ApiConstants.retrievalSummaryReport}')
+          .replace(queryParameters: params);
+      final result = await _call(
+        request: () => http.get(uri, headers: getAuthHeaders()),
+        errorPrefix: 'getSummaryReport',
       );
-
       if (result['success'] && result['data'] != null) {
-        final reportData = result['data'] as List<dynamic>;
         summaryReport.value =
-            reportData.map((item) => RetrievalSummary.fromJson(item)).toList();
+            (result['data'] as List).map((i) => RetrievalSummary.fromJson(i)).toList();
       } else {
         errorMessage.value = result['message'];
-        Get.snackbar(
-          'Error',
-          result['message'],
-          backgroundColor: Colors.red,
-          colorText: Colors.white,
-        );
+        _snackError(result['message']);
       }
-    } catch (e) {
-      errorMessage.value = 'Connection error: $e';
-      Get.snackbar(
-        'Error',
-        'Connection error: $e',
-        backgroundColor: Colors.red,
-        colorText: Colors.white,
-      );
     } finally {
       isLoading.value = false;
     }
   }
 
-  /// Get by-client report
   Future<void> getByClientReport({String? startDate, String? endDate}) async {
     try {
       isLoading.value = true;
-      errorMessage.value = '';
-
       final params = <String, String>{};
-      if (startDate != null && startDate.isNotEmpty) {
-        params['startDate'] = startDate;
-      }
-      if (endDate != null && endDate.isNotEmpty) params['endDate'] = endDate;
+      if (startDate?.isNotEmpty == true) params['startDate'] = startDate!;
+      if (endDate?.isNotEmpty == true)   params['endDate']   = endDate!;
 
-      final uri = Uri.parse(
-        '${ApiConstants.baseUrl}${ApiConstants.retrievalByClientReport}',
-      ).replace(queryParameters: params);
-
-      final result = await _makeApiCall(
-        apiCall: () => http.get(uri, headers: getAuthHeaders()),
-        errorMessagePrefix: 'Failed to fetch client report',
+      final uri = Uri.parse('${ApiConstants.baseUrl}${ApiConstants.retrievalByClientReport}')
+          .replace(queryParameters: params);
+      final result = await _call(
+        request: () => http.get(uri, headers: getAuthHeaders()),
+        errorPrefix: 'getByClientReport',
       );
-
       if (result['success'] && result['data'] != null) {
-        final reportData = result['data'] as List<dynamic>;
-        clientReport.value = reportData
-            .map((item) => ClientRetrievalReport.fromJson(item))
-            .toList();
+        clientReport.value =
+            (result['data'] as List).map((i) => ClientRetrievalReport.fromJson(i)).toList();
       } else {
         errorMessage.value = result['message'];
-        Get.snackbar(
-          'Error',
-          result['message'],
-          backgroundColor: Colors.red,
-          colorText: Colors.white,
-        );
+        _snackError(result['message']);
       }
-    } catch (e) {
-      errorMessage.value = 'Connection error: $e';
-      Get.snackbar(
-        'Error',
-        'Connection error: $e',
-        backgroundColor: Colors.red,
-        colorText: Colors.white,
-      );
     } finally {
       isLoading.value = false;
     }
   }
 
   // ============================================
-  // UTILITY METHODS
+  // PAGINATION & FILTERS
   // ============================================
 
-  /// Clear all filters
-  void clearFilters() {
-    searchQuery.value = '';
-    clientFilter.value = 0;
-    boxFilter.value = 0;
-    startDateFilter.value = '';
-    endDateFilter.value = '';
-    sortBy.value = 'retrieval_date';
-    sortOrder.value = 'DESC';
-  }
-
-  /// Load next page
   Future<void> loadNextPage() async {
     if (currentPage.value < totalPages.value) {
       await getAllRetrievals(
-        page: currentPage.value + 1,
-        search: searchQuery.value,
-        clientId: clientFilter.value > 0 ? clientFilter.value : null,
-        boxId: boxFilter.value > 0 ? boxFilter.value : null,
-        startDate:
-            startDateFilter.value.isNotEmpty ? startDateFilter.value : null,
-        endDate: endDateFilter.value.isNotEmpty ? endDateFilter.value : null,
-        sortBy: sortBy.value,
+        page:      currentPage.value + 1,
+        search:    searchQuery.value.isNotEmpty     ? searchQuery.value     : null,
+        clientId:  clientFilter.value > 0           ? clientFilter.value    : null,
+        boxId:     boxFilter.value > 0              ? boxFilter.value       : null,
+        startDate: startDateFilter.value.isNotEmpty ? startDateFilter.value : null,
+        endDate:   endDateFilter.value.isNotEmpty   ? endDateFilter.value   : null,
+        sortBy:    sortBy.value,
         sortOrder: sortOrder.value,
       );
     }
   }
 
-  /// Load previous page
   Future<void> loadPreviousPage() async {
     if (currentPage.value > 1) {
       await getAllRetrievals(
-        page: currentPage.value - 1,
-        search: searchQuery.value,
-        clientId: clientFilter.value > 0 ? clientFilter.value : null,
-        boxId: boxFilter.value > 0 ? boxFilter.value : null,
-        startDate:
-            startDateFilter.value.isNotEmpty ? startDateFilter.value : null,
-        endDate: endDateFilter.value.isNotEmpty ? endDateFilter.value : null,
-        sortBy: sortBy.value,
+        page:      currentPage.value - 1,
+        search:    searchQuery.value.isNotEmpty     ? searchQuery.value     : null,
+        clientId:  clientFilter.value > 0           ? clientFilter.value    : null,
+        boxId:     boxFilter.value > 0              ? boxFilter.value       : null,
+        startDate: startDateFilter.value.isNotEmpty ? startDateFilter.value : null,
+        endDate:   endDateFilter.value.isNotEmpty   ? endDateFilter.value   : null,
+        sortBy:    sortBy.value,
         sortOrder: sortOrder.value,
       );
     }
   }
 
-  /// Get client name by ID
+  void clearFilters() {
+    searchQuery.value     = '';
+    clientFilter.value    = 0;
+    boxFilter.value       = 0;
+    startDateFilter.value = '';
+    endDateFilter.value   = '';
+    sortBy.value          = 'retrieval_date';
+    sortOrder.value       = 'DESC';
+  }
+
+  // ============================================
+  // UTILITY
+  // ============================================
+
   String getClientName(int clientId) {
-    try {
-      final client = clients.firstWhere(
-        (client) => client.clientId == clientId,
-      );
-      return client.clientName;
-    } catch (e) {
-      return 'Unknown Client';
-    }
+    try { return clients.firstWhere((c) => c.clientId == clientId).clientName; }
+    catch (_) { return 'Unknown Client'; }
   }
 
-  /// Check if retrieval has signatures
-  bool hasSignatures(RetrievalModel retrieval) {
-    return retrieval.hasClientSignature || retrieval.hasStaffSignature;
-  }
-
-  /// Check if retrieval is complete (has client signature)
-  bool isRetrievalComplete(RetrievalModel retrieval) {
-    return retrieval.isComplete;
-  }
-
-  /// Check if retrieval has PDF
-  bool hasPdf(RetrievalModel retrieval) {
-    return retrieval.pdfPath != null && retrieval.pdfPath!.isNotEmpty;
-  }
-
-  /// Check if retrieval is pending client signature
-  bool isPendingClientSignature(RetrievalModel retrieval) {
-    return !retrieval.hasClientSignature;
-  }
+  bool hasSignatures(RetrievalModel r)            => r.hasClientSignature || r.hasStaffSignature;
+  bool isRetrievalComplete(RetrievalModel r)      => r.isComplete;
+  bool hasPdf(RetrievalModel r)                   => r.pdfPath != null && r.pdfPath!.isNotEmpty;
+  bool isPendingClientSignature(RetrievalModel r) => !r.hasClientSignature;
 
   // ============================================
   // CLEANUP
@@ -1150,8 +749,10 @@ class RetrievalController extends GetxController {
     myPendingRetrievals.clear();
     clientRetrievals.clear();
     boxRetrievals.clear();
-    selectedRetrieval.value = null;
-    retrievalStats.value = null;
+    selectedBoxes.clear();
+    selectedRetrieval.value  = null;
+    retrievalStats.value     = null;
+    activeClientsCount.value = 0;
     summaryReport.clear();
     clientReport.clear();
     clients.clear();
