@@ -149,13 +149,13 @@ class AppTypography {
   static TextStyle h4({Color? color}) => TextStyle(
     fontSize: heading4,
     fontWeight: semiBold,
-    color: color ?? AppColors.textDark,
+    color: color ?? AppColors.textLight,
   );
 
   static TextStyle h5({Color? color, required FontWeight fontWeight}) => TextStyle(
     fontSize: heading5,
     fontWeight: semiBold,
-    color: color ?? AppColors.textDark,
+    color: color ?? AppColors.textLight,
   );
 
   static TextStyle bodyLargeStyle({Color? color, FontWeight? weight}) => TextStyle(

@@ -8,6 +8,8 @@ class CustomCard extends StatelessWidget {
   final EdgeInsetsGeometry? margin;
   final Color? backgroundColor;
   final double? elevation;
+  final double? borderRadius;
+  final VoidCallback? onTap;
 
   const CustomCard({
     super.key,
@@ -16,17 +18,25 @@ class CustomCard extends StatelessWidget {
     this.margin,
     this.backgroundColor,
     this.elevation,
+    this.borderRadius,
+    this.onTap,
   });
 
   @override
   Widget build(BuildContext context) {
-    return Card(
-      margin: margin ?? AppEdgeInsets.allMedium,
-      elevation: elevation ?? 2,
-      color: backgroundColor ?? AppColors.cardBackground,
-      child: Padding(
-        padding: padding ?? AppEdgeInsets.allMedium,
-        child: child,
+    return GestureDetector(
+      onTap: onTap,
+      child: Card(
+        margin: margin ?? const EdgeInsets.all(0),
+        elevation: elevation ?? 2,
+        color: backgroundColor ?? Colors.white,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(borderRadius ?? 12),
+        ),
+        child: Padding(
+          padding: padding ?? const EdgeInsets.all(16),
+          child: child,
+        ),
       ),
     );
   }

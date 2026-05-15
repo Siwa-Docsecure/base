@@ -1,4 +1,4 @@
-// Updated collection_controller.dart with better error handling
+// collection_controller.dart
 import 'dart:convert';
 import 'dart:math';
 import 'package:flutter/material.dart';
@@ -12,7 +12,6 @@ import 'package:psms/models/collection_model.dart';
 class CollectionController extends GetxController {
   static CollectionController get instance => Get.find();
 
-  // Reactive variables
   final RxList<CollectionModel> collections = <CollectionModel>[].obs;
   final RxList<CollectionModel> recentCollections = <CollectionModel>[].obs;
   final RxList<CollectionModel> clientCollections = <CollectionModel>[].obs;
@@ -24,7 +23,6 @@ class CollectionController extends GetxController {
   final RxInt totalPages = 1.obs;
   final RxInt totalCollections = 0.obs;
 
-  // Filter variables
   final RxString searchQuery = ''.obs;
   final RxInt clientFilter = 0.obs;
   final RxString startDateFilter = ''.obs;
@@ -32,15 +30,12 @@ class CollectionController extends GetxController {
   final RxString sortBy = 'collection_date'.obs;
   final RxString sortOrder = 'DESC'.obs;
 
-  // Clients list for dropdowns
   final RxList<ClientModel> clients = <ClientModel>[].obs;
-
-  // Report data
   final RxList<CollectionSummary> summaryReport = <CollectionSummary>[].obs;
   final RxList<ClientCollectionReport> clientReport =
       <ClientCollectionReport>[].obs;
 
-  // Permission check methods
+  // ── Permissions ──────────────────────────────────────────────────────────
   bool get canCreateCollections =>
       AuthController.instance.hasPermission('canCreateCollections');
   bool get canEditCollections =>
@@ -48,807 +43,473 @@ class CollectionController extends GetxController {
   bool get canDeleteCollections =>
       AuthController.instance.currentUser.value?.role == 'admin';
 
-  // Get auth headers
-  Map<String, String> getAuthHeaders() {
-    final authController = AuthController.instance;
-    return authController.getAuthHeaders();
+  Map<String, String> getAuthHeaders() =>
+      AuthController.instance.getAuthHeaders();
+  String _endpoint(String path) => '${ApiConstants.baseUrl}/collections$path';
+
+  // ── Type-safe int parser ─────────────────────────────────────────────────
+  // mysql2 may serialize BigInt or SUM()/COUNT() results as String when the
+  // value travels through JSON.  This helper handles String, int, double, and
+  // null so CollectionStats.fromJson / pagination parsing never throws.
+  static int _safeInt(dynamic v, [int fallback = 0]) {
+    if (v == null) return fallback;
+    if (v is int) return v;
+    if (v is double) return v.toInt();
+    if (v is String) return int.tryParse(v) ?? fallback;
+    // BigInt via dart:ffi is unlikely in HTTP JSON, but just in case
+    return fallback;
   }
 
-  // Helper method to get collection endpoint
-  String getCollectionEndpoint(String endpoint) {
-    return '${ApiConstants.baseUrl}/collections$endpoint';
-  }
+  // Normalises a raw stats map so all fields are int regardless of JSON type.
+  static Map<String, dynamic> _normaliseStats(Map<String, dynamic> raw) => {
+        'totalCollections': _safeInt(raw['total_collections']),
+        'totalBoxesCollected': _safeInt(raw['total_boxes_collected']),
+        'clientsWithCollections': _safeInt(raw['clients_with_collections']),
+        'todayCollections': _safeInt(raw['today_collections']),
+        'thisWeekCollections': _safeInt(raw['this_week_collections']),
+        'thisMonthCollections': _safeInt(raw['this_month_collections']),
+      };
 
-  // Helper method to safely parse JSON response
-  dynamic _parseJsonResponse(String responseBody) {
+  // ── JSON / HTTP helpers ──────────────────────────────────────────────────
+  dynamic _parseJson(String body) {
     try {
-      return json.decode(responseBody);
+      return json.decode(body);
     } catch (e) {
-      print('JSON Parse Error: $e');
-      print(
-        'Response body: ${responseBody.substring(0, min(200, responseBody.length))}',
-      );
+      debugPrint(
+          'JSON parse error: $e\n${body.substring(0, min(200, body.length))}');
       return null;
     }
   }
 
-  // Helper method to make API calls with better error handling
-  Future<Map<String, dynamic>> _makeApiCall({
-    required Future<http.Response> Function() apiCall,
-    required String errorMessagePrefix,
+  Future<Map<String, dynamic>> _call({
+    required Future<http.Response> Function() request,
+    required String tag,
   }) async {
     try {
-      final response = await apiCall();
-      print('API Response Status: ${response.statusCode}');
-      print(
-        'API Response Body: ${response.body.substring(0, min(200, response.body.length))}...',
-      );
+      final res = await request();
+      debugPrint(
+          '[$tag] ${res.statusCode}: ${res.body.substring(0, min(300, res.body.length))}');
 
-      if (response.statusCode == 200 || response.statusCode == 201) {
-        final responseData = _parseJsonResponse(response.body);
+      if (res.statusCode == 401) {
+        final refreshed = await AuthController.instance.refreshAccessToken();
+        if (refreshed) return _call(request: request, tag: tag);
+        return {
+          'success': false,
+          'message': 'Session expired. Please log in again.'
+        };
+      }
 
-        if (responseData == null) {
-          return {
-            'success': false,
-            'message': 'Invalid server response format',
-          };
-        }
+      final data = _parseJson(res.body);
+      if (data == null)
+        return {'success': false, 'message': 'Invalid server response'};
 
-        if (responseData['status'] == 'success') {
+      if (res.statusCode == 200 || res.statusCode == 201) {
+        if (data['status'] == 'success') {
           return {
             'success': true,
-            'data': responseData['data'],
-            'message': responseData['message'] ?? 'Operation successful',
-          };
-        } else {
-          return {
-            'success': false,
-            'message': responseData['message'] ?? 'Operation failed',
+            'data': data['data'],
+            'message': data['message'] ?? 'OK'
           };
         }
-      } else if (response.statusCode == 401) {
-        // Token expired, try to refresh
-        final authController = AuthController.instance;
-        final refreshSuccess = await authController.refreshAccessToken();
-
-        if (refreshSuccess) {
-          // Retry the API call with new token
-          final retryResponse = await apiCall();
-          final retryData = _parseJsonResponse(retryResponse.body);
-
-          if (retryResponse.statusCode == 200 ||
-              retryResponse.statusCode == 201) {
-            if (retryData != null && retryData['status'] == 'success') {
-              return {
-                'success': true,
-                'data': retryData['data'],
-                'message': retryData['message'] ?? 'Operation successful',
-              };
-            }
-          }
-        }
-
         return {
           'success': false,
-          'message': 'Authentication failed. Please login again.',
+          'message': data['message'] ?? 'Operation failed'
         };
-      } else if (response.statusCode == 404) {
-        return {'success': false, 'message': 'Resource not found'};
-      } else if (response.statusCode >= 500) {
-        return {
-          'success': false,
-          'message': 'Server error. Please try again later.',
-        };
-      } else {
-        try {
-          final errorData = json.decode(response.body);
-          return {
-            'success': false,
-            'message':
-                errorData['message'] ??
-                'Request failed with status ${response.statusCode}',
-          };
-        } catch (_) {
-          return {
-            'success': false,
-            'message': 'Request failed with status ${response.statusCode}',
-          };
-        }
       }
+
+      return {
+        'success': false,
+        'message': data['message'] ?? 'Error ${res.statusCode}'
+      };
     } catch (e) {
-      print('API Call Error: $e');
-      return {'success': false, 'message': 'Connection error: ${e.toString()}'};
+      debugPrint('[$tag] error: $e');
+      return {'success': false, 'message': 'Connection error: $e'};
     }
   }
 
-  // ============================================
-  // INITIALIZATION & DATA LOADING
-  // ============================================
+  void _snack(String title, String msg, {Color bg = Colors.red}) =>
+      Get.snackbar(title, msg,
+          backgroundColor: bg,
+          colorText: Colors.white,
+          snackPosition: SnackPosition.BOTTOM,
+          margin: const EdgeInsets.all(16),
+          borderRadius: 12);
 
-  Future<void> initialize({bool forceRefresh = false}) async {
+  // ── Initialisation ───────────────────────────────────────────────────────
+  Future<void> initialize() async {
     try {
       isLoading.value = true;
       errorMessage.value = '';
-
-      print('Initializing CollectionController...');
-
-      // Load data sequentially
-      await getAllCollections();
-      print('Collections loaded: ${collections.length}');
-
-      await getCollectionStatistics();
-      print('Statistics loaded');
-
-      await getRecentCollections();
-      print('Recent collections loaded: ${recentCollections.length}');
-
-      await getClients();
-      print('Clients loaded: ${clients.length}');
-
-      print('Initialization complete');
+      await Future.wait([
+        getAllCollections(),
+        getClients(),
+      ]);
+      // Stats in background — failure should not block the page
+      getCollectionStatistics();
+      getRecentCollections();
     } catch (e) {
-      print('Initialize error: $e');
-      errorMessage.value = 'Failed to initialize: $e';
-      Get.snackbar(
-        'Error',
-        'Failed to load collection data: $e',
-        backgroundColor: Colors.red,
-        colorText: Colors.white,
-      );
+      errorMessage.value = 'Failed to initialise: $e';
     } finally {
       isLoading.value = false;
     }
   }
 
-  // Get all clients
   Future<void> getClients() async {
     try {
-      final result = await _makeApiCall(
-        apiCall:
-            () => http.get(
-              Uri.parse('${ApiConstants.baseUrl}${ApiConstants.clients}'),
-              headers: getAuthHeaders(),
-            ),
-        errorMessagePrefix: 'Failed to fetch clients',
+      final result = await _call(
+        request: () => http.get(
+          Uri.parse('${ApiConstants.baseUrl}${ApiConstants.clients}'),
+          headers: getAuthHeaders(),
+        ),
+        tag: 'getClients',
       );
-
       if (result['success'] && result['data'] != null) {
-        List<dynamic> clientsData;
-
-        // Handle different response structures
-        if (result['data'] is List) {
-          clientsData = result['data'];
-        } else if (result['data']['clients'] != null) {
-          clientsData = result['data']['clients'] as List<dynamic>;
-        } else {
-          clientsData = [];
-        }
-
-        clients.value =
-            clientsData.map((client) => ClientModel.fromJson(client)).toList();
-      } else {
-        errorMessage.value = result['message'];
+        final raw = result['data'];
+        final list = raw is List ? raw : (raw['clients'] as List? ?? []);
+        clients.value = list.map((c) => ClientModel.fromJson(c)).toList();
       }
     } catch (e) {
-      print('Error fetching clients: $e');
-      errorMessage.value = 'Failed to load clients: $e';
+      debugPrint('getClients error: $e');
     }
   }
 
-  // ============================================
-  // COLLECTION CRUD OPERATIONS (UPDATED)
-  // ============================================
-
+  // ── Collections CRUD ────────────────────────────────────────────────────
   Future<void> getAllCollections({
-  int page = 1,
-  int limit = 20,
-  String? search,
-  int? clientId,
-  String? startDate,
-  String? endDate,
-  String? sortBy,
-  String? sortOrder,
-}) async {
-  try {
-    isLoading.value = true;
-    errorMessage.value = '';
-
-    // Build query parameters
-    final params = <String, String>{
-      'page': page.toString(),
-      'limit': limit.toString(),
-    };
-
-    if (search != null && search.isNotEmpty) params['search'] = search;
-    if (clientId != null && clientId > 0) params['clientId'] = clientId.toString();
-    if (startDate != null && startDate.isNotEmpty) params['startDate'] = startDate;
-    if (endDate != null && endDate.isNotEmpty) params['endDate'] = endDate;
-    if (sortBy != null && sortBy.isNotEmpty) params['sortBy'] = sortBy;
-    if (sortOrder != null && sortOrder.isNotEmpty) params['sortOrder'] = sortOrder;
-
-    final uri = Uri.parse(getCollectionEndpoint('')).replace(queryParameters: params);
-
-    final result = await _makeApiCall(
-      apiCall: () => http.get(uri, headers: getAuthHeaders()),
-      errorMessagePrefix: 'Failed to fetch collections',
-    );
-
-    if (result['success'] && result['data'] != null) {
-      final collectionsData = result['data']['collections'] as List<dynamic>;
-      
-      // Debug: Check if signature data is included
-      print('=== DEBUG: Collections Response ===');
-      print('Total collections: ${collectionsData.length}');
-      if (collectionsData.isNotEmpty) {
-        final first = collectionsData.first;
-        print('First collection:');
-        print('- Has dispatcherSignature: ${first['dispatcherSignature'] != null || first['dispatcher_signature'] != null}');
-        print('- Has collectorSignature: ${first['collectorSignature'] != null || first['collector_signature'] != null}');
-        
-        if (first['dispatcherSignature'] != null) {
-          print('- dispatcherSignature type: ${first['dispatcherSignature'].runtimeType}');
-        }
-        if (first['dispatcher_signature'] != null) {
-          print('- dispatcher_signature type: ${first['dispatcher_signature'].runtimeType}');
-        }
-      }
-      print('=== END DEBUG ===');
-      
-      collections.value = collectionsData.map((col) => CollectionModel.fromJson(col)).toList();
-      
-      // Debug: Check parsed models
-      print('=== DEBUG: Parsed Models ===');
-      if (collections.isNotEmpty) {
-        final firstModel = collections.first;
-        print('First parsed model:');
-        print('- dispatcherSignature: ${firstModel.dispatcherSignature != null}');
-        print('- collectorSignature: ${firstModel.collectorSignature != null}');
-        if (firstModel.dispatcherSignature != null) {
-          print('- dispatcherSignature length: ${firstModel.dispatcherSignature!.length}');
-        }
-      }
-      print('=== END DEBUG ===');
-      
-      currentPage.value = result['data']['pagination']['page'] ?? page;
-      totalPages.value = result['data']['pagination']['totalPages'] ?? 1;
-      totalCollections.value = result['data']['pagination']['total'] ?? 0;
-
-      // Save filters
-      if (search != null) searchQuery.value = search;
-      if (clientId != null) clientFilter.value = clientId;
-      if (startDate != null) startDateFilter.value = startDate;
-      if (endDate != null) endDateFilter.value = endDate;
-      if (sortBy != null) this.sortBy.value = sortBy;
-      if (sortOrder != null) this.sortOrder.value = sortOrder;
-    } else {
-      errorMessage.value = result['message'];
-      Get.snackbar(
-        'Error',
-        result['message'],
-        backgroundColor: Colors.red,
-        colorText: Colors.white,
-      );
-    }
-  } catch (e) {
-    errorMessage.value = 'Connection error: $e';
-    Get.snackbar(
-      'Error',
-      'Connection error: $e',
-      backgroundColor: Colors.red,
-      colorText: Colors.white,
-    );
-  } finally {
-    isLoading.value = false;
-  }
-}
-  // Get collection by ID with better signature handling
-  Future<CollectionModel?> getCollectionById(int collectionId) async {
+    int page = 1,
+    int limit = 20,
+    String? search,
+    int? clientId,
+    String? startDate,
+    String? endDate,
+    String? sortByParam,
+    String? sortOrderParam,
+  }) async {
     try {
       isLoading.value = true;
       errorMessage.value = '';
 
-      final result = await _makeApiCall(
-        apiCall:
-            () => http.get(
-              Uri.parse(getCollectionEndpoint('/$collectionId')),
-              headers: getAuthHeaders(),
-            ),
-        errorMessagePrefix: 'Failed to fetch collection',
+      final params = <String, String>{
+        'page': page.toString(),
+        'limit': limit.toString(),
+      };
+      if (search?.isNotEmpty == true) params['search'] = search!;
+      if (clientId != null && clientId > 0)
+        params['clientId'] = clientId.toString();
+      if (startDate?.isNotEmpty == true) params['startDate'] = startDate!;
+      if (endDate?.isNotEmpty == true) params['endDate'] = endDate!;
+      if (sortByParam?.isNotEmpty == true) params['sortBy'] = sortByParam!;
+      if (sortOrderParam?.isNotEmpty == true)
+        params['sortOrder'] = sortOrderParam!;
+
+      final uri = Uri.parse(_endpoint('')).replace(queryParameters: params);
+      final result = await _call(
+        request: () => http.get(uri, headers: getAuthHeaders()),
+        tag: 'getAllCollections',
       );
 
       if (result['success'] && result['data'] != null) {
-        final collectionData = result['data'];
+        final data = result['data'] as Map<String, dynamic>;
+        final cols = data['collections'] as List<dynamic>;
+        final pagination = data['pagination'] as Map<String, dynamic>? ?? {};
 
-        // Debug: Check what we received
-        print('=== Collection Details Debug ===');
-        print('Collection ID: $collectionId');
-        print(
-          'Has dispatcherSignature: ${collectionData['dispatcherSignature'] != null}',
-        );
-        print(
-          'Has collectorSignature: ${collectionData['collectorSignature'] != null}',
-        );
+        collections.value =
+            cols.map((c) => CollectionModel.fromJson(c)).toList();
 
-        if (collectionData['dispatcherSignature'] != null) {
-          final sig = collectionData['dispatcherSignature'];
-          print('Dispatcher signature type: ${sig.runtimeType}');
-          print('Dispatcher signature length: ${sig.length}');
-          print(
-            'First 50 chars: ${sig.length > 50 ? sig.substring(0, 50) : sig}',
-          );
-        }
+        // _safeInt handles String-encoded pagination values
+        currentPage.value = _safeInt(pagination['page'], page);
+        totalPages.value = _safeInt(pagination['totalPages'], 1);
+        totalCollections.value = _safeInt(pagination['total'], 0);
 
-        if (collectionData['collectorSignature'] != null) {
-          final sig = collectionData['collectorSignature'];
-          print('Collector signature type: ${sig.runtimeType}');
-          print('Collector signature length: ${sig.length}');
-          print(
-            'First 50 chars: ${sig.length > 50 ? sig.substring(0, 50) : sig}',
-          );
-        }
-        print('=== End Debug ===');
-
-        final collection = CollectionModel.fromJson(collectionData);
-        selectedCollection.value = collection;
-        return collection;
+        if (search != null) searchQuery.value = search;
+        if (clientId != null) clientFilter.value = clientId;
+        if (startDate != null) startDateFilter.value = startDate;
+        if (endDate != null) endDateFilter.value = endDate;
+        if (sortByParam != null) sortBy.value = sortByParam;
+        if (sortOrderParam != null) sortOrder.value = sortOrderParam;
       } else {
         errorMessage.value = result['message'];
-        Get.snackbar(
-          'Error',
-          result['message'],
-          backgroundColor: Colors.red,
-          colorText: Colors.white,
-        );
+        _snack('Error', result['message']);
       }
     } catch (e) {
       errorMessage.value = 'Connection error: $e';
-      Get.snackbar(
-        'Error',
-        'Connection error: $e',
-        backgroundColor: Colors.red,
-        colorText: Colors.white,
+      _snack('Error', 'Connection error: $e');
+    } finally {
+      isLoading.value = false;
+    }
+  }
+
+  Future<CollectionModel?> getCollectionById(int id) async {
+    try {
+      isLoading.value = true;
+      final result = await _call(
+        request: () =>
+            http.get(Uri.parse(_endpoint('/$id')), headers: getAuthHeaders()),
+        tag: 'getCollectionById',
       );
+      if (result['success'] && result['data'] != null) {
+        final col = CollectionModel.fromJson(result['data']);
+        selectedCollection.value = col;
+        return col;
+      }
+      _snack('Error', result['message']);
+    } catch (e) {
+      _snack('Error', 'Connection error: $e');
     } finally {
       isLoading.value = false;
     }
     return null;
   }
-  
-  // Create collection
+
   Future<bool> createCollection(CreateCollectionRequest request) async {
-    try {
-      if (!canCreateCollections) {
-        errorMessage.value = 'You do not have permission to create collections';
-        Get.snackbar(
-          'Permission Denied',
+    if (!canCreateCollections) {
+      _snack('Permission Denied',
           'You do not have permission to create collections',
-          backgroundColor: Colors.orange,
-          colorText: Colors.white,
-        );
-        return false;
-      }
-
-      // Validate required fields
-      if (request.clientId == 0 ||
-          request.totalBoxes < 1 ||
-          request.dispatcherName.isEmpty ||
-          request.collectorName.isEmpty ||
-          request.collectionDate.isEmpty) {
-        errorMessage.value = 'Please fill all required fields';
-        Get.snackbar(
-          'Validation Error',
-          'Client, total boxes, dispatcher, collector, and date are required',
-          backgroundColor: Colors.red,
-          colorText: Colors.white,
-        );
-        return false;
-      }
-
-      isLoading.value = true;
-      errorMessage.value = '';
-
-      final result = await _makeApiCall(
-        apiCall:
-            () => http.post(
-              Uri.parse(getCollectionEndpoint('')),
-              headers: {
-                ...getAuthHeaders(),
-                'Content-Type': 'application/json',
-              },
-              body: json.encode(request.toJson()),
-            ),
-        errorMessagePrefix: 'Failed to create collection',
-      );
-
-      if (result['success']) {
-        Get.snackbar(
-          'Success',
-          'Collection created successfully',
-          backgroundColor: Colors.green,
-          colorText: Colors.white,
-          duration: Duration(seconds: 3),
-        );
-
-        // Refresh the collections list
-        await getAllCollections(page: currentPage.value);
-        await getCollectionStatistics();
-        await getRecentCollections();
-
-        return true;
-      } else {
-        errorMessage.value = result['message'];
-        Get.snackbar(
-          'Error',
-          result['message'],
-          backgroundColor: Colors.red,
-          colorText: Colors.white,
-        );
-      }
-    } catch (e) {
-      errorMessage.value = 'Connection error: $e';
-      Get.snackbar(
-        'Error',
-        'Connection error: $e',
-        backgroundColor: Colors.red,
-        colorText: Colors.white,
-      );
-    } finally {
-      isLoading.value = false;
+          bg: Colors.orange);
+      return false;
     }
-    return false;
-  }
-
-  // Update collection
-  Future<bool> updateCollection(
-    int collectionId,
-    UpdateCollectionRequest request,
-  ) async {
     try {
-      if (!canEditCollections) {
-        errorMessage.value = 'You do not have permission to edit collections';
-        Get.snackbar(
-          'Permission Denied',
-          'You do not have permission to edit collections',
-          backgroundColor: Colors.orange,
-          colorText: Colors.white,
-        );
-        return false;
-      }
-
       isLoading.value = true;
-      errorMessage.value = '';
-
-      final result = await _makeApiCall(
-        apiCall:
-            () => http.put(
-              Uri.parse(getCollectionEndpoint('/$collectionId')),
-              headers: {
-                ...getAuthHeaders(),
-                'Content-Type': 'application/json',
-              },
-              body: json.encode(request.toJson()),
-            ),
-        errorMessagePrefix: 'Failed to update collection',
+      final result = await _call(
+        request: () => http.post(
+          Uri.parse(_endpoint('')),
+          headers: {...getAuthHeaders(), 'Content-Type': 'application/json'},
+          body: json.encode(request.toJson()),
+        ),
+        tag: 'createCollection',
       );
-
       if (result['success']) {
-        Get.snackbar(
-          'Success',
-          'Collection updated successfully',
-          backgroundColor: Colors.green,
-          colorText: Colors.white,
-        );
-
-        // Refresh the collection
-        await getCollectionById(collectionId);
-        // Refresh the collections list
-        await getAllCollections(page: currentPage.value);
+        await getAllCollections(page: 1);
+        unawaited(getCollectionStatistics());
+        _snack('Success', result['message'], bg: Colors.green);
         return true;
-      } else {
-        errorMessage.value = result['message'];
-        Get.snackbar(
-          'Error',
-          result['message'],
-          backgroundColor: Colors.red,
-          colorText: Colors.white,
-        );
       }
+      _snack('Error', result['message']);
     } catch (e) {
-      errorMessage.value = 'Connection error: $e';
-      Get.snackbar(
-        'Error',
-        'Connection error: $e',
-        backgroundColor: Colors.red,
-        colorText: Colors.white,
-      );
+      _snack('Error', 'Connection error: $e');
     } finally {
       isLoading.value = false;
     }
     return false;
   }
 
-  // Delete collection
-  Future<bool> deleteCollection(int collectionId) async {
+  Future<bool> updateCollection(int id, UpdateCollectionRequest request) async {
     try {
-      if (!canDeleteCollections) {
-        errorMessage.value = 'Only administrators can delete collections';
-        Get.snackbar(
-          'Permission Denied',
-          'Only administrators can delete collections',
-          backgroundColor: Colors.orange,
-          colorText: Colors.white,
-        );
-        return false;
-      }
-
       isLoading.value = true;
-      errorMessage.value = '';
-
-      final result = await _makeApiCall(
-        apiCall:
-            () => http.delete(
-              Uri.parse(getCollectionEndpoint('/$collectionId')),
-              headers: getAuthHeaders(),
-            ),
-        errorMessagePrefix: 'Failed to delete collection',
+      final result = await _call(
+        request: () => http.put(
+          Uri.parse(_endpoint('/$id')),
+          headers: {...getAuthHeaders(), 'Content-Type': 'application/json'},
+          body: json.encode(request.toJson()),
+        ),
+        tag: 'updateCollection',
       );
-
       if (result['success']) {
-        Get.snackbar(
-          'Success',
-          'Collection deleted successfully',
-          backgroundColor: Colors.green,
-          colorText: Colors.white,
-        );
-
-        // Remove from local list
-        collections.removeWhere((col) => col.collectionId == collectionId);
-        // Refresh the collections list
         await getAllCollections(page: currentPage.value);
-        await getCollectionStatistics();
-        await getRecentCollections();
-
+        unawaited(getCollectionStatistics());
+        _snack('Success', result['message'], bg: Colors.green);
         return true;
-      } else {
-        errorMessage.value = result['message'];
-        Get.snackbar(
-          'Error',
-          result['message'],
-          backgroundColor: Colors.red,
-          colorText: Colors.white,
-        );
       }
+      _snack('Error', result['message']);
     } catch (e) {
-      errorMessage.value = 'Connection error: $e';
-      Get.snackbar(
-        'Error',
-        'Connection error: $e',
-        backgroundColor: Colors.red,
-        colorText: Colors.white,
-      );
+      _snack('Error', 'Connection error: $e');
     } finally {
       isLoading.value = false;
     }
     return false;
   }
 
-  // ============================================
-  // QUERY & STATISTICS OPERATIONS (UPDATED)
-  // ============================================
+  Future<bool> deleteCollection(int id) async {
+    try {
+      isLoading.value = true;
+      final result = await _call(
+        request: () => http.delete(Uri.parse(_endpoint('/$id')),
+            headers: getAuthHeaders()),
+        tag: 'deleteCollection',
+      );
+      if (result['success']) {
+        collections.removeWhere((c) => c.collectionId == id);
+        await getAllCollections(page: currentPage.value);
+        unawaited(getCollectionStatistics());
+        _snack('Success', result['message'], bg: Colors.green);
+        return true;
+      }
+      _snack('Error', result['message']);
+    } catch (e) {
+      _snack('Error', 'Connection error: $e');
+    } finally {
+      isLoading.value = false;
+    }
+    return false;
+  }
 
-  // Get collection statistics
+  // ── Statistics ───────────────────────────────────────────────────────────
+  // Direct HTTP call — bypasses _call() wrapper so we can log the raw body
+  // and apply _normaliseStats() before handing to CollectionStats.fromJson.
   Future<CollectionStats?> getCollectionStatistics() async {
     try {
-      isLoading.value = true;
-      errorMessage.value = '';
-
-      final result = await _makeApiCall(
-        apiCall:
-            () => http.get(
-              Uri.parse(getCollectionEndpoint('/stats')),
-              headers: getAuthHeaders(),
-            ),
-        errorMessagePrefix: 'Failed to fetch statistics',
+      final res = await http.get(
+        Uri.parse(_endpoint('/stats')),
+        headers: getAuthHeaders(),
       );
+      debugPrint('[getCollectionStatistics] ${res.statusCode}: ${res.body}');
 
-      if (result['success'] && result['data'] != null) {
-        final stats = CollectionStats.fromJson(result['data']);
-        collectionStats.value = stats;
-        return stats;
-      } else {
-        errorMessage.value = result['message'];
+      if (res.statusCode == 401) {
+        final ok = await AuthController.instance.refreshAccessToken();
+        if (ok) return getCollectionStatistics();
+        return null;
       }
+      if (res.statusCode != 200) return null;
+
+      final body = _parseJson(res.body);
+      if (body == null || body['status'] != 'success') return null;
+
+      final rawData = body['data'] as Map<dynamic, dynamic>;
+      final typedData = rawData.cast<String, dynamic>();
+
+      // Manually create stats using _safeInt (handles String, int, null)
+      final stats = CollectionStats(
+        totalCollections: _safeInt(typedData['total_collections']),
+        totalBoxesCollected: _safeInt(typedData['total_boxes_collected']),
+        clientsWithCollections: _safeInt(typedData['clients_with_collections']),
+        todayCollections: _safeInt(typedData['today_collections']),
+        thisWeekCollections: _safeInt(typedData['this_week_collections']),
+        thisMonthCollections: _safeInt(typedData['this_month_collections']),
+      );
+      collectionStats.value = stats;
+      return stats;
     } catch (e) {
-      errorMessage.value = 'Connection error: $e';
-    } finally {
-      isLoading.value = false;
+      debugPrint('getCollectionStatistics error: $e');
+      return null;
     }
-    return null;
   }
 
-  // Get recent collections
+  // ── Recent collections ───────────────────────────────────────────────────
   Future<void> getRecentCollections({int limit = 10}) async {
     try {
-      isLoading.value = true;
-      errorMessage.value = '';
+      final uri = Uri.parse(_endpoint('/recent'))
+          .replace(queryParameters: {'limit': limit.toString()});
+      final res = await http.get(uri, headers: getAuthHeaders());
 
-      final uri = Uri.parse(
-        getCollectionEndpoint('/recent'),
-      ).replace(queryParameters: {'limit': limit.toString()});
-
-      final result = await _makeApiCall(
-        apiCall: () => http.get(uri, headers: getAuthHeaders()),
-        errorMessagePrefix: 'Failed to fetch recent collections',
-      );
-
-      if (result['success'] && result['data'] != null) {
-        final collectionsData = result['data'] as List<dynamic>;
-        recentCollections.value =
-            collectionsData
-                .map((col) => CollectionModel.fromJson(col))
-                .toList();
-      } else {
-        errorMessage.value = result['message'];
+      if (res.statusCode == 401) {
+        final refreshed = await AuthController.instance.refreshAccessToken();
+        if (refreshed) return getRecentCollections(limit: limit);
       }
+
+      if (res.statusCode != 200) {
+        debugPrint('getRecentCollections failed: ${res.statusCode}');
+        return;
+      }
+
+      final data = _parseJson(res.body);
+      if (data == null) return;
+
+      List collectionsList = [];
+      if (data['status'] == 'success') {
+        // Try to extract from data['data']
+        if (data['data'] is List) {
+          collectionsList = data['data'];
+        } else if (data['data'] is Map && data['data']['collections'] is List) {
+          collectionsList = data['data']['collections'];
+        } else if (data['collections'] is List) {
+          collectionsList = data['collections'];
+        }
+      } else if (data is List) {
+        // In case the API returns a direct list
+        collectionsList = data;
+      }
+
+      recentCollections.value = collectionsList
+          .where((item) => item is Map<String, dynamic>)
+          .map((item) => CollectionModel.fromJson(item))
+          .toList();
     } catch (e) {
-      errorMessage.value = 'Connection error: $e';
-    } finally {
-      isLoading.value = false;
+      debugPrint('getRecentCollections error: $e');
     }
   }
 
-  // Get collections by client
   Future<void> getCollectionsByClient(int clientId) async {
     try {
       isLoading.value = true;
-      errorMessage.value = '';
-
-      final result = await _makeApiCall(
-        apiCall:
-            () => http.get(
-              Uri.parse(getCollectionEndpoint('/client/$clientId')),
-              headers: getAuthHeaders(),
-            ),
-        errorMessagePrefix: 'Failed to fetch client collections',
+      final result = await _call(
+        request: () => http.get(
+          Uri.parse(_endpoint('/client/$clientId')),
+          headers: getAuthHeaders(),
+        ),
+        tag: 'getCollectionsByClient',
       );
-
       if (result['success'] && result['data'] != null) {
-        final collectionsData = result['data']['collections'] as List<dynamic>;
-        clientCollections.value =
-            collectionsData
-                .map((col) => CollectionModel.fromJson(col))
-                .toList();
+        clientCollections.value = (result['data']['collections'] as List)
+            .map((c) => CollectionModel.fromJson(c))
+            .toList();
       } else {
-        errorMessage.value = result['message'];
-        Get.snackbar(
-          'Error',
-          result['message'],
-          backgroundColor: Colors.red,
-          colorText: Colors.white,
-        );
+        _snack('Error', result['message']);
       }
     } catch (e) {
-      errorMessage.value = 'Connection error: $e';
-      Get.snackbar(
-        'Error',
-        'Connection error: $e',
-        backgroundColor: Colors.red,
-        colorText: Colors.white,
-      );
+      _snack('Error', 'Connection error: $e');
     } finally {
       isLoading.value = false;
     }
   }
 
-  // ============================================
-  // REPORTING OPERATIONS (UPDATED)
-  // ============================================
-
-  // Get summary report
-  Future<void> getSummaryReport({
-    String? startDate,
-    String? endDate,
-    int? clientId,
-  }) async {
+  // ── Reports ──────────────────────────────────────────────────────────────
+  Future<void> getSummaryReport(
+      {String? startDate, String? endDate, int? clientId}) async {
     try {
       isLoading.value = true;
-      errorMessage.value = '';
-
       final params = <String, String>{};
-      if (startDate != null && startDate.isNotEmpty)
-        params['startDate'] = startDate;
-      if (endDate != null && endDate.isNotEmpty) params['endDate'] = endDate;
+      if (startDate?.isNotEmpty == true) params['startDate'] = startDate!;
+      if (endDate?.isNotEmpty == true) params['endDate'] = endDate!;
       if (clientId != null && clientId > 0)
         params['clientId'] = clientId.toString();
 
-      final uri = Uri.parse(
-        getCollectionEndpoint('/reports/summary'),
-      ).replace(queryParameters: params);
-
-      final result = await _makeApiCall(
-        apiCall: () => http.get(uri, headers: getAuthHeaders()),
-        errorMessagePrefix: 'Failed to fetch summary report',
+      final uri = Uri.parse(_endpoint('/reports/summary'))
+          .replace(queryParameters: params);
+      final result = await _call(
+        request: () => http.get(uri, headers: getAuthHeaders()),
+        tag: 'getSummaryReport',
       );
-
       if (result['success'] && result['data'] != null) {
-        final reportData = result['data'] as List<dynamic>;
-        summaryReport.value =
-            reportData.map((item) => CollectionSummary.fromJson(item)).toList();
+        summaryReport.value = (result['data'] as List)
+            .map((i) => CollectionSummary.fromJson(i))
+            .toList();
       } else {
-        errorMessage.value = result['message'];
-        Get.snackbar(
-          'Error',
-          result['message'],
-          backgroundColor: Colors.red,
-          colorText: Colors.white,
-        );
+        _snack('Error', result['message']);
       }
     } catch (e) {
-      errorMessage.value = 'Connection error: $e';
-      Get.snackbar(
-        'Error',
-        'Connection error: $e',
-        backgroundColor: Colors.red,
-        colorText: Colors.white,
-      );
+      _snack('Error', 'Connection error: $e');
     } finally {
       isLoading.value = false;
     }
   }
 
-  // Get by-client report
   Future<void> getByClientReport({String? startDate, String? endDate}) async {
     try {
       isLoading.value = true;
-      errorMessage.value = '';
-
       final params = <String, String>{};
-      if (startDate != null && startDate.isNotEmpty)
-        params['startDate'] = startDate;
-      if (endDate != null && endDate.isNotEmpty) params['endDate'] = endDate;
+      if (startDate?.isNotEmpty == true) params['startDate'] = startDate!;
+      if (endDate?.isNotEmpty == true) params['endDate'] = endDate!;
 
-      final uri = Uri.parse(
-        getCollectionEndpoint('/reports/by-client'),
-      ).replace(queryParameters: params);
-
-      final result = await _makeApiCall(
-        apiCall: () => http.get(uri, headers: getAuthHeaders()),
-        errorMessagePrefix: 'Failed to fetch client report',
+      final uri = Uri.parse(_endpoint('/reports/by-client'))
+          .replace(queryParameters: params);
+      final result = await _call(
+        request: () => http.get(uri, headers: getAuthHeaders()),
+        tag: 'getByClientReport',
       );
-
       if (result['success'] && result['data'] != null) {
-        final reportData = result['data'] as List<dynamic>;
-        clientReport.value =
-            reportData
-                .map((item) => ClientCollectionReport.fromJson(item))
-                .toList();
+        clientReport.value = (result['data'] as List)
+            .map((i) => ClientCollectionReport.fromJson(i))
+            .toList();
       } else {
-        errorMessage.value = result['message'];
-        Get.snackbar(
-          'Error',
-          result['message'],
-          backgroundColor: Colors.red,
-          colorText: Colors.white,
-        );
+        _snack('Error', result['message']);
       }
     } catch (e) {
-      errorMessage.value = 'Connection error: $e';
-      Get.snackbar(
-        'Error',
-        'Connection error: $e',
-        backgroundColor: Colors.red,
-        colorText: Colors.white,
-      );
+      _snack('Error', 'Connection error: $e');
     } finally {
       isLoading.value = false;
     }
   }
 
-  // ============================================
-  // HELPER METHODS
-  // ============================================
-
-  // Clear filters
+  // ── Pagination helpers ───────────────────────────────────────────────────
   void clearFilters() {
     searchQuery.value = '';
     clientFilter.value = 0;
@@ -858,64 +519,53 @@ class CollectionController extends GetxController {
     sortOrder.value = 'DESC';
   }
 
-  // Load next page
-  Future<void> loadNextPage() async {
+  Future<void> loadNextPage({int limit = 20}) async {
     if (currentPage.value < totalPages.value) {
       await getAllCollections(
         page: currentPage.value + 1,
-        search: searchQuery.value,
+        limit: limit,
+        search: searchQuery.value.isNotEmpty ? searchQuery.value : null,
         clientId: clientFilter.value > 0 ? clientFilter.value : null,
         startDate:
             startDateFilter.value.isNotEmpty ? startDateFilter.value : null,
         endDate: endDateFilter.value.isNotEmpty ? endDateFilter.value : null,
-        sortBy: sortBy.value,
-        sortOrder: sortOrder.value,
+        sortByParam: sortBy.value,
+        sortOrderParam: sortOrder.value,
       );
     }
   }
 
-  // Load previous page
-  Future<void> loadPreviousPage() async {
+  Future<void> loadPreviousPage({int limit = 20}) async {
     if (currentPage.value > 1) {
       await getAllCollections(
         page: currentPage.value - 1,
-        search: searchQuery.value,
+        limit: limit,
+        search: searchQuery.value.isNotEmpty ? searchQuery.value : null,
         clientId: clientFilter.value > 0 ? clientFilter.value : null,
         startDate:
             startDateFilter.value.isNotEmpty ? startDateFilter.value : null,
         endDate: endDateFilter.value.isNotEmpty ? endDateFilter.value : null,
-        sortBy: sortBy.value,
-        sortOrder: sortOrder.value,
+        sortByParam: sortBy.value,
+        sortOrderParam: sortOrder.value,
       );
     }
   }
 
-  // Get client name by ID
-  String getClientName(int clientId) {
+  // ── Misc helpers ─────────────────────────────────────────────────────────
+  String getClientName(int id) {
     try {
-      final client = clients.firstWhere(
-        (client) => client.clientId == clientId,
-      );
-      return client.clientName;
-    } catch (e) {
+      return clients.firstWhere((c) => c.clientId == id).clientName;
+    } catch (_) {
       return 'Unknown Client';
     }
   }
 
-  // Check if collection has signatures
-  bool hasSignatures(CollectionModel collection) {
-    return (collection.dispatcherSignature != null &&
-            collection.dispatcherSignature!.isNotEmpty) ||
-        (collection.collectorSignature != null &&
-            collection.collectorSignature!.isNotEmpty);
-  }
+  bool hasSignatures(CollectionModel c) =>
+      (c.dispatcherSignature?.isNotEmpty ?? false) ||
+      (c.collectorSignature?.isNotEmpty ?? false);
 
-  // Check if collection has PDF
-  bool hasPdf(CollectionModel collection) {
-    return collection.pdfPath != null && collection.pdfPath!.isNotEmpty;
-  }
+  bool hasPdf(CollectionModel c) => c.pdfPath?.isNotEmpty ?? false;
 
-  // Dispose controller
   @override
   void onClose() {
     collections.clear();
@@ -929,3 +579,6 @@ class CollectionController extends GetxController {
     super.onClose();
   }
 }
+
+// Dart doesn't have a built-in unawaited() before Dart 3 in some SDKs
+void unawaited(Future<dynamic> _) {}

@@ -2,12 +2,15 @@
 import 'package:flutter/material.dart';
 import 'package:psms/constants/app_constants.dart';
 
+import 'custom_card.dart';
+
 class LoadingIndicator extends StatelessWidget {
   final String message;
   final bool showBackground;
   final Color? backgroundColor;
   final Color? indicatorColor;
   final double? size;
+  final bool useCard; // wrap in card
 
   const LoadingIndicator({
     super.key,
@@ -16,60 +19,42 @@ class LoadingIndicator extends StatelessWidget {
     this.backgroundColor,
     this.indicatorColor,
     this.size,
+    this.useCard = false,
   });
 
   @override
   Widget build(BuildContext context) {
+    final content = Column(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        SizedBox(
+          width: size ?? 40,
+          height: size ?? 40,
+          child: CircularProgressIndicator(
+            valueColor: AlwaysStoppedAnimation<Color>(
+              indicatorColor ?? AppColors.primary,
+            ),
+            strokeWidth: 3,
+          ),
+        ),
+        if (message.isNotEmpty) ...[
+          const SizedBox(height: 16),
+          Text(
+            message,
+            style: AppTypography.bodyText(color: AppColors.textMedium),
+          ),
+        ],
+      ],
+    );
+
     if (showBackground) {
       return Container(
         color: backgroundColor ?? AppColors.background,
-        child: Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              CircularProgressIndicator(
-                valueColor: AlwaysStoppedAnimation<Color>(
-                  indicatorColor ?? AppColors.primary,
-                ),
-                strokeWidth: 3,
-              ),
-              if (message.isNotEmpty) ...[
-                const SizedBox(height: 16),
-                Text(
-                  message,
-                  style: AppTypography.bodyText(color: AppColors.textMedium),
-                ),
-              ],
-            ],
-          ),
-        ),
+        child: Center(child: useCard ? CustomCard(child: content) : content),
       );
     }
 
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          SizedBox(
-            width: size ?? 40,
-            height: size ?? 40,
-            child: CircularProgressIndicator(
-              valueColor: AlwaysStoppedAnimation<Color>(
-                indicatorColor ?? AppColors.primary,
-              ),
-              strokeWidth: 3,
-            ),
-          ),
-          if (message.isNotEmpty) ...[
-            const SizedBox(height: 16),
-            Text(
-              message,
-              style: AppTypography.bodyText(color: AppColors.textMedium),
-            ),
-          ],
-        ],
-      ),
-    );
+    return Center(child: useCard ? CustomCard(child: content) : content);
   }
 }
 
@@ -113,7 +98,8 @@ class ShimmerLoading extends StatefulWidget {
   ShimmerLoadingState createState() => ShimmerLoadingState();
 }
 
-class ShimmerLoadingState extends State<ShimmerLoading> with SingleTickerProviderStateMixin {
+class ShimmerLoadingState extends State<ShimmerLoading>
+    with SingleTickerProviderStateMixin {
   late AnimationController _controller;
 
   @override

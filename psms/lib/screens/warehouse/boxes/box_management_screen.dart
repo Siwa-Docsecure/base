@@ -59,6 +59,8 @@ class _BoxManagementScreenState extends State<BoxManagementScreen>
     WidgetsBinding.instance.addPostFrameCallback((_) {
       boxController.initialize();
       storageController.initialize();
+      // Explicitly load boxes for the first tab (All Boxes)
+      _applyFilter(status: 'all', pendingOnly: false);
     });
 
     _scrollController.addListener(() {
@@ -216,13 +218,14 @@ class _BoxManagementScreenState extends State<BoxManagementScreen>
         border: Border(bottom: BorderSide(color: Colors.grey.shade200)),
       ),
       child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        mainAxisAlignment: MainAxisAlignment.start,
         children: [
           // Page info
           Obx(() => Text(
                 'Page ${boxController.currentPage.value} of ${boxController.totalPages.value} (${boxController.totalBoxes.value} total)',
                 style: const TextStyle(fontSize: 14),
               )),
+          SizedBox(width: 12),
           // Limit dropdown and navigation
           Row(
             children: [
@@ -2330,14 +2333,6 @@ class _BoxManagementScreenState extends State<BoxManagementScreen>
     return Column(
       children: [
         if (_showFilters) _buildFilterPanel(),
-        // Pagination footer at the top (only for main tabs)
-        AnimatedBuilder(
-          animation: _tabController,
-          builder: (context, child) {
-            if (_tabController.index == 3) return const SizedBox.shrink();
-            return _buildPaginationFooter();
-          },
-        ),
         Expanded(
           child: TabBarView(
             controller: _tabController,
@@ -2348,6 +2343,14 @@ class _BoxManagementScreenState extends State<BoxManagementScreen>
               _buildPendingDestructionView(),
             ],
           ),
+        ),
+        // Pagination footer – shown only for non‑pending tabs
+        AnimatedBuilder(
+          animation: _tabController,
+          builder: (context, child) {
+            if (_tabController.index == 3) return const SizedBox.shrink();
+            return _buildPaginationFooter();
+          },
         ),
       ],
     );
