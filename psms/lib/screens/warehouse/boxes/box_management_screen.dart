@@ -55,12 +55,16 @@ class _BoxManagementScreenState extends State<BoxManagementScreen>
   void initState() {
     super.initState();
     _tabController = TabController(length: 4, vsync: this);
+    _tabController.addListener(_onTabChanged);
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       boxController.initialize();
       storageController.initialize();
-      // Explicitly load boxes for the first tab (All Boxes)
-      _applyFilter(status: 'all', pendingOnly: false);
+      // Call getAllBoxes directly — NOT via _applyFilter — to avoid the
+      // setState that would rebuild the widget tree and recreate Obx instances
+      // before they have had a chance to register as observers. That race caused
+      // boxes to silently miss their first update notification.
+      boxController.getAllBoxes();
     });
 
     _scrollController.addListener(() {
@@ -76,6 +80,7 @@ class _BoxManagementScreenState extends State<BoxManagementScreen>
 
   @override
   void dispose() {
+    _tabController.removeListener(_onTabChanged);
     _tabController.dispose();
     _searchController.dispose();
     _scrollController.dispose();
@@ -3233,6 +3238,27 @@ class _BoxManagementScreenState extends State<BoxManagementScreen>
         break;
       case 'audit':
         _showAuditLog(box);
+        break;
+    }
+  }
+
+  /// Handles tab changes triggered by swiping on the TabBarView.
+  /// Tap-based changes are already handled by the onTap callback in _buildTabBar.
+  /// We guard with indexIsChanging so this only fires once per completed animation.
+  void _onTabChanged() {
+    if (_tabController.indexIsChanging) return;
+    switch (_tabController.index) {
+      case 0:
+        _applyFilter(status: 'all', pendingOnly: false);
+        break;
+      case 1:
+        _applyFilter(status: 'stored', pendingOnly: false);
+        break;
+      case 2:
+        _applyFilter(status: 'retrieved', pendingOnly: false);
+        break;
+      case 3:
+        _applyFilter(status: 'all', pendingOnly: true);
         break;
     }
   }

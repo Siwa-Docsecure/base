@@ -367,13 +367,13 @@ class _StorageManagementPageState extends State<StorageManagementPage>
           sortBy: storageController.sortBy.value,
           sortOrder: storageController.sortOrder.value,
         ),
-        child: _locationsViewMode == ViewMode.grid
+        child: _locationsViewMode == ViewMode.list
             ? GridView.builder(
                 padding: EdgeInsets.all(
                     ResponsiveHelper.isMobile(context) ? 12 : 16),
                 gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                  crossAxisCount: ResponsiveHelper.isDesktop(context) ? 2 : 1,
-                  childAspectRatio: 3,
+                  crossAxisCount: ResponsiveHelper.isDesktop(context) ? 4 : 1,
+                  childAspectRatio: 2,
                   crossAxisSpacing: 16,
                   mainAxisSpacing: 16,
                 ),
@@ -742,8 +742,8 @@ class _StorageManagementPageState extends State<StorageManagementPage>
             const SizedBox(height: 16),
             GridView.count(
               crossAxisCount: ResponsiveHelper.isMobile(context)
-                  ? 2
-                  : (ResponsiveHelper.isTablet(context) ? 3 : 3),
+                  ? 4
+                  : (ResponsiveHelper.isTablet(context) ? 3 : 6),
               shrinkWrap: true,
               physics: const NeverScrollableScrollPhysics(),
               childAspectRatio: ResponsiveHelper.isMobile(context) ? 1.3 : 1.5,

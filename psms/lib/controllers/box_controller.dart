@@ -235,7 +235,9 @@ class BoxController extends GetxController {
 
   Future<void> initialize({bool forceRefresh = false}) async {
     try {
-      isLoading.value = true;
+      // Do NOT set isLoading = true here. getAllBoxes() has its own
+      // isLoading guard — if we set it true first, getAllBoxes returns
+      // immediately and boxes never load.
       errorMessage.value = '';
       print('Initializing BoxController...');
 
@@ -327,12 +329,13 @@ class BoxController extends GetxController {
           totalPages.value = boxResponse.data!.pagination?.totalPages ?? 1;
           totalBoxes.value = boxResponse.data!.pagination?.total ?? 0;
 
-          // Store filter values for later use (e.g., next page)
-          if (search != null) searchQuery.value = search;
-          if (status != null) statusFilter.value = status;
-          if (clientId != null) clientFilter.value = clientId;
-          if (pendingDestruction != null)
-            pendingDestructionFilter.value = pendingDestruction;
+          // Always sync stored filter state — null means "no filter" (clear it).
+          // This ensures loadNextPage / loadPreviousPage replay the correct
+          // filters rather than silently carrying over stale values.
+          searchQuery.value = search ?? '';
+          statusFilter.value = status ?? '';
+          clientFilter.value = clientId ?? 0;
+          pendingDestructionFilter.value = pendingDestruction ?? false;
           if (sortBy != null) this.sortBy.value = sortBy;
           if (sortOrder != null) this.sortOrder.value = sortOrder;
         } else {
@@ -360,13 +363,13 @@ class BoxController extends GetxController {
     if (currentPage.value >= totalPages.value || isLoading.value) return;
     await getAllBoxes(
       page: currentPage.value + 1,
-      search: searchQuery.value,
-      status: statusFilter.value,
+      search: searchQuery.value.isNotEmpty ? searchQuery.value : null,
+      status: statusFilter.value.isNotEmpty ? statusFilter.value : null,
       clientId: clientFilter.value > 0 ? clientFilter.value : null,
       pendingDestruction: pendingDestructionFilter.value,
       sortBy: sortBy.value,
       sortOrder: sortOrder.value,
-      refresh: false,
+      refresh: true, // replace, not append — consistent with prev/next buttons
     );
   }
 
@@ -461,7 +464,7 @@ class BoxController extends GetxController {
             colorText: Colors.white,
             duration: Duration(seconds: 3),
           );
-          await getAllBoxes(page: currentPage.value);
+          await _refreshCurrentPage();
           return true;
         } else {
           errorMessage.value = responseData['message'];
@@ -512,7 +515,7 @@ class BoxController extends GetxController {
           Get.snackbar('Success', 'Box updated successfully',
               backgroundColor: Colors.green, colorText: Colors.white);
           await getBoxById(boxId);
-          await getAllBoxes(page: currentPage.value);
+          await _refreshCurrentPage();
           return true;
         } else {
           errorMessage.value = responseData['message'];
@@ -559,7 +562,7 @@ class BoxController extends GetxController {
             colorText: Colors.white,
           );
           await getBoxById(boxId);
-          await getAllBoxes(page: currentPage.value);
+          await _refreshCurrentPage();
           if (status == 'destroyed') {
             await getPendingDestructionBoxes();
           }
@@ -613,7 +616,7 @@ class BoxController extends GetxController {
           Get.snackbar('Success', 'Box deleted successfully',
               backgroundColor: Colors.green, colorText: Colors.white);
           boxes.removeWhere((box) => box.boxId == boxId);
-          await getAllBoxes(page: currentPage.value);
+          await _refreshCurrentPage();
           return true;
         } else {
           errorMessage.value = responseData['message'];
@@ -794,7 +797,7 @@ class BoxController extends GetxController {
         if (responseData['status'] == 'success') {
           Get.snackbar('Success', 'Bulk box creation completed',
               backgroundColor: Colors.green, colorText: Colors.white);
-          await getAllBoxes(page: currentPage.value);
+          await _refreshCurrentPage();
           return {
             'success': true,
             'data': responseData['data'],
@@ -843,7 +846,7 @@ class BoxController extends GetxController {
             backgroundColor: Colors.green,
             colorText: Colors.white,
           );
-          await getAllBoxes(page: currentPage.value);
+          await _refreshCurrentPage();
           if (status == 'destroyed') {
             await getPendingDestructionBoxes();
           }
@@ -1037,16 +1040,33 @@ class BoxController extends GetxController {
     return box.status != 'destroyed';
   }
 
+  /// Refreshes the current page while replaying all active filters and sort
+  /// state. Call this after any CRUD mutation instead of getAllBoxes() with
+  /// bare parameters, so the active tab / filter selection is preserved.
+  Future<void> _refreshCurrentPage() async {
+    await getAllBoxes(
+      page: currentPage.value,
+      search: searchQuery.value.isNotEmpty ? searchQuery.value : null,
+      status: statusFilter.value.isNotEmpty ? statusFilter.value : null,
+      clientId: clientFilter.value > 0 ? clientFilter.value : null,
+      pendingDestruction: pendingDestructionFilter.value,
+      sortBy: sortBy.value,
+      sortOrder: sortOrder.value,
+      refresh: true,
+    );
+  }
+
   Future<void> loadPreviousPage() async {
     if (currentPage.value > 1) {
       await getAllBoxes(
         page: currentPage.value - 1,
-        search: searchQuery.value,
-        status: statusFilter.value,
+        search: searchQuery.value.isNotEmpty ? searchQuery.value : null,
+        status: statusFilter.value.isNotEmpty ? statusFilter.value : null,
         clientId: clientFilter.value > 0 ? clientFilter.value : null,
         pendingDestruction: pendingDestructionFilter.value,
         sortBy: sortBy.value,
         sortOrder: sortOrder.value,
+        refresh: true,
       );
     }
   }

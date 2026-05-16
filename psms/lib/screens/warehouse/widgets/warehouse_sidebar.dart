@@ -78,7 +78,7 @@ class WarehouseSidebar extends StatelessWidget {
             const SizedBox(width: 12),
             const Expanded(
               child: Text(
-                'DocSecure',
+                'Docsecure',
                 style: TextStyle(
                   fontSize: 18,
                   fontWeight: FontWeight.bold,

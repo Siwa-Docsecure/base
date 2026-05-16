@@ -9,7 +9,7 @@ import 'package:psms/screens/warehouse/settings/settings_page.dart';
 import 'package:psms/screens/warehouse/users/user_management_page.dart';
 
 import 'collections/collections_page.dart';
-import 'widgets/boxes_page.dart';
+import 'delivery/delivery_management_screen.dart';
 import 'widgets/dashboard_page.dart';
 import 'widgets/placeholder_pages.dart';
 import 'widgets/warehouse_header.dart';
@@ -71,18 +71,18 @@ class _WarehouseHomePageState extends State<WarehouseHomePage> {
           Padding(
             padding: const EdgeInsets.only(right: 8.0),
             child: Obx(() => CircleAvatar(
-              backgroundColor: const Color(0xFF3498DB),
-              child: Text(
-                _authController.currentUser.value?.username
-                    ?.substring(0, 1)
-                    .toUpperCase() ??
-                    'U',
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            )),
+                  backgroundColor: const Color(0xFF3498DB),
+                  child: Text(
+                    _authController.currentUser.value?.username
+                            ?.substring(0, 1)
+                            .toUpperCase() ??
+                        'U',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                )),
           ),
         ],
       ),
@@ -95,19 +95,20 @@ class _WarehouseHomePageState extends State<WarehouseHomePage> {
     return Row(
       children: [
         Obx(() => WarehouseSidebar(
-          isCollapsed: _isCollapsed.value,
-          selectedIndex: _selectedIndex.value,
-          onItemSelected: (index) => _selectedIndex.value = index,
-          onToggleCollapse: () => _isCollapsed.value = !_isCollapsed.value,
-          authController: _authController,
-        )),
+              isCollapsed: _isCollapsed.value,
+              selectedIndex: _selectedIndex.value,
+              onItemSelected: (index) => _selectedIndex.value = index,
+              onToggleCollapse: () => _isCollapsed.value = !_isCollapsed.value,
+              authController: _authController,
+            )),
         Expanded(
           child: Column(
             children: [
-              WarehouseHeader(
-                title: _getPageTitle(),
-                authController: _authController,
-              ),
+              Obx(() => WarehouseHeader(
+                    // ← wrap this
+                    title: _getPageTitle(),
+                    authController: _authController,
+                  )),
               Expanded(
                 child: Obx(() => _getCurrentPage()),
               ),
@@ -183,15 +184,18 @@ class _WarehouseHomePageState extends State<WarehouseHomePage> {
     }
 
     if (_authController.hasPermission('canCreateCollections')) {
-      menuItems.add(_buildMenuItem(2, Icons.collections_outlined, 'Collections'));
+      menuItems
+          .add(_buildMenuItem(2, Icons.collections_outlined, 'Collections'));
     }
 
     if (_authController.hasPermission('canCreateRetrievals')) {
-      menuItems.add(_buildMenuItem(3, Icons.find_in_page_outlined, 'Retrievals'));
+      menuItems
+          .add(_buildMenuItem(3, Icons.find_in_page_outlined, 'Retrievals'));
     }
 
     if (_authController.hasPermission('canCreateDeliveries')) {
-      menuItems.add(_buildMenuItem(4, Icons.local_shipping_outlined, 'Deliveries'));
+      menuItems
+          .add(_buildMenuItem(4, Icons.local_shipping_outlined, 'Deliveries'));
     }
 
     if (_authController.hasPermission('canViewReports')) {
@@ -203,7 +207,8 @@ class _WarehouseHomePageState extends State<WarehouseHomePage> {
     }
 
     if (_authController.hasPermission('canManageUsers')) {
-      menuItems.add(_buildMenuItem(7, Icons.people_outline, 'Client Management'));
+      menuItems
+          .add(_buildMenuItem(7, Icons.people_outline, 'Client Management'));
     }
 
     menuItems.add(const Divider());
@@ -214,32 +219,32 @@ class _WarehouseHomePageState extends State<WarehouseHomePage> {
 
   Widget _buildMenuItem(int index, IconData icon, String title) {
     return Obx(() => ListTile(
-      leading: Icon(
-        icon,
-        color: _selectedIndex.value == index
-            ? const Color(0xFF3498DB)
-            : const Color(0xFF95A5A6),
-      ),
-      title: Text(
-        title,
-        style: TextStyle(
-          color: _selectedIndex.value == index
-              ? const Color(0xFF3498DB)
-              : const Color(0xFF2C3E50),
-          fontWeight: _selectedIndex.value == index
-              ? FontWeight.w600
-              : FontWeight.normal,
-        ),
-      ),
-      selected: _selectedIndex.value == index,
-      selectedTileColor: const Color(0xFF3498DB).withOpacity(0.1),
-      onTap: () {
-        _selectedIndex.value = index;
-        if (Navigator.canPop(context)) {
-          Navigator.pop(context);
-        }
-      },
-    ));
+          leading: Icon(
+            icon,
+            color: _selectedIndex.value == index
+                ? const Color(0xFF3498DB)
+                : const Color(0xFF95A5A6),
+          ),
+          title: Text(
+            title,
+            style: TextStyle(
+              color: _selectedIndex.value == index
+                  ? const Color(0xFF3498DB)
+                  : const Color(0xFF2C3E50),
+              fontWeight: _selectedIndex.value == index
+                  ? FontWeight.w600
+                  : FontWeight.normal,
+            ),
+          ),
+          selected: _selectedIndex.value == index,
+          selectedTileColor: const Color(0xFF3498DB).withOpacity(0.1),
+          onTap: () {
+            _selectedIndex.value = index;
+            if (Navigator.canPop(context)) {
+              Navigator.pop(context);
+            }
+          },
+        ));
   }
 
   Widget _getCurrentPage() {
@@ -253,7 +258,7 @@ class _WarehouseHomePageState extends State<WarehouseHomePage> {
       case 3:
         return RetrievalsPage();
       case 4:
-        return DeliveriesPage(authController: _authController);
+        return DeliveryManagementScreen();
       case 5:
         return ReportsPage(authController: _authController);
       case 6:

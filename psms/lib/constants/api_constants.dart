@@ -53,7 +53,6 @@ class ApiConstants {
   static const String boxReportSingle = '/boxes/report/single';
   static const String boxReportBulk = '/boxes/report/bulk';
 
-
   // ============================================
   // RACKING LABEL ENDPOINTS
   // ============================================
@@ -166,4 +165,20 @@ class ApiConstants {
   static const String collectionSummaryReport = '/collections/reports/summary';
   static const String collectionByClientReport =
       '/collections/reports/by-client';
+
+  // ============================================
+// DELIVERY ENDPOINTS
+// ============================================
+
+  static const String deliveries = '/deliveries';
+  static const String deliveryStats = '/deliveries/stats';
+  static const String deliveryRecent = '/deliveries/recent';
+  static const String deliveryReportSummary = '/deliveries/reports/summary';
+  static const String deliveryReportByClient = '/deliveries/reports/by-client';
+  static const String deliveryReportByItem = '/deliveries/reports/by-item';
+
+  static String deliveryById(String id) => '/deliveries/$id';
+  static String deliveryByClient(String id) => '/deliveries/client/$id';
+  static String deliverySignature(String id) => '/deliveries/$id/signature';
+  static String deliveryPdf(String id) => '/deliveries/$id/pdf';
 }
