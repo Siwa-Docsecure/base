@@ -7,6 +7,17 @@ import 'package:psms/utils/responsive_helper.dart';
 import 'client/client_home.dart';
 import 'warehouse/warehouse_home.dart';
 
+// ─────────────────────────────────────────────────────────────────────────
+// CONSTANTS
+// ─────────────────────────────────────────────────────────────────────────
+
+const _kInk = Color(0xFF1A1A1A);
+const _kLogoAsset = 'assets/logo/logo.jpeg';
+
+// ─────────────────────────────────────────────────────────────────────────
+// SCREEN
+// ─────────────────────────────────────────────────────────────────────────
+
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
 
@@ -18,31 +29,51 @@ class _LoginPageState extends State<LoginPage> {
   final AuthController _authController = Get.put(AuthController());
   final TextEditingController _usernameController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
+  final FocusNode _passwordFocus = FocusNode();
   final _formKey = GlobalKey<FormState>();
+
   bool _obscurePassword = true;
   bool _keepLoggedIn = false;
 
   @override
-  void initState() {
-    super.initState();
-    _usernameController.text = 'admin';
-    _passwordController.text = 'admin123';
+  void dispose() {
+    _usernameController.dispose();
+    _passwordController.dispose();
+    _passwordFocus.dispose();
+    super.dispose();
   }
+
+  // ─────────────────────────────────────────────────────────────────────
+  // BUILD
+  // ─────────────────────────────────────────────────────────────────────
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.white,
-      body: context.isMobile ? _buildMobileLayout() : _buildDesktopLayout(),
+      body: SafeArea(
+        child: context.isMobile ? _buildMobileLayout() : _buildSplitLayout(),
+      ),
     );
   }
 
-  Widget _buildDesktopLayout() {
-    return Row(
-      children: [
-        Expanded(flex: 5, child: _buildBrandingSection()),
-        Expanded(flex: 5, child: _buildFormSection()),
-      ],
+  /// Shared side-by-side layout for tablet and desktop. Tablet just gets a
+  /// slightly smaller branding panel and smaller type, handled internally
+  /// by the widgets below via `context.responsive`, rather than a separate
+  /// near-duplicate layout method.
+  Widget _buildSplitLayout() {
+    final brandingFlex = context.isDesktop ? 5 : 4;
+    final formFlex = context.isDesktop ? 5 : 6;
+
+    return SizedBox(
+      height: double.infinity,
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Expanded(flex: brandingFlex, child: _buildBrandingSection()),
+          Expanded(flex: formFlex, child: _buildFormSection()),
+        ],
+      ),
     );
   }
 
@@ -57,81 +88,43 @@ class _LoginPageState extends State<LoginPage> {
     );
   }
 
+  // ─────────────────────────────────────────────────────────────────────
+  // BRANDING
+  // ─────────────────────────────────────────────────────────────────────
+
   Widget _buildBrandingSection() {
+    final headlineSize = context.responsive<double>(
+        mobile: 32, tablet: 36, desktop: 48);
+
     return Container(
-      height: context.screenHeight,
-      decoration: BoxDecoration(
-        color: Color(0xFF1A1A1A),
-        image: DecorationImage(
-          image: AssetImage('assets/images/background2.jpg'),
-          fit: BoxFit.cover,
-          colorFilter: ColorFilter.mode(
-            Colors.black.withOpacity(0.4),
-            BlendMode.darken,
+      color: _kInk,
+      padding: const EdgeInsets.all(48),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _buildLogoBadge(),
+          const Spacer(),
+          Text(
+            'Secure storage,\nsimplified tracking.',
+            style: TextStyle(
+              color: Colors.white,
+              fontSize: headlineSize,
+              fontWeight: FontWeight.w600,
+              height: 1.2,
+            ),
           ),
-        ),
-      ),
-      child: Container(
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [
-              Colors.black.withOpacity(0.3),
-              Colors.black.withOpacity(0.6),
-            ],
+          const SizedBox(height: 16),
+          Text(
+            'Manage document and box storage, retrieval, and destruction '
+            'workflows from one place.',
+            style: TextStyle(
+              color: Colors.white.withOpacity(0.85),
+              fontSize: 16,
+              height: 1.6,
+            ),
           ),
-        ),
-        padding: EdgeInsets.all(48),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Container(
-              padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.15),
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: Colors.white.withOpacity(0.2)),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(Icons.inventory_2_rounded, color: Colors.white, size: 20),
-                  SizedBox(width: 8),
-                  Text(
-                    'DOCSECURE',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600,
-                      letterSpacing: 1,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            Spacer(),
-            Text(
-              'Build something\namazing today.',
-              style: TextStyle(
-                color: Colors.white,
-                fontSize: 48,
-                fontWeight: FontWeight.w600,
-                height: 1.2,
-              ),
-            ),
-            SizedBox(height: 16),
-            Text(
-              'Streamline your document storage and retrieval\nprocesses with our comprehensive system.',
-              style: TextStyle(
-                color: Colors.white.withOpacity(0.85),
-                fontSize: 16,
-                height: 1.6,
-              ),
-            ),
-            Spacer(flex: 2),
-          ],
-        ),
+          const Spacer(flex: 2),
+        ],
       ),
     );
   }
@@ -139,39 +132,15 @@ class _LoginPageState extends State<LoginPage> {
   Widget _buildMobileBrandingSection() {
     return Container(
       width: double.infinity,
-      decoration: BoxDecoration(
-        color: Color(0xFF1A1A1A),
-      ),
-      padding: EdgeInsets.symmetric(vertical: 48, horizontal: 24),
+      color: _kInk,
+      padding: const EdgeInsets.symmetric(vertical: 48, horizontal: 24),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Container(
-            padding: EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-            decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.15),
-              borderRadius: BorderRadius.circular(6),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(Icons.inventory_2_rounded, color: Colors.white, size: 16),
-                SizedBox(width: 6),
-                Text(
-                  'DOCSECURE',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                    letterSpacing: 1,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          SizedBox(height: 32),
-          Text(
-            'Build something\namazing today.',
+          _buildLogoBadge(compact: true),
+          const SizedBox(height: 32),
+          const Text(
+            'Secure storage,\nsimplified tracking.',
             style: TextStyle(
               color: Colors.white,
               fontSize: 32,
@@ -184,16 +153,46 @@ class _LoginPageState extends State<LoginPage> {
     );
   }
 
+  /// Shared logo chip for both branding sections. The asset is a .jpeg, so
+  /// it isn't guaranteed to have a transparent background — sitting it on
+  /// a small white card keeps it legible regardless of the dark backdrop.
+  Widget _buildLogoBadge({bool compact = false}) {
+    return Container(
+      padding: EdgeInsets.symmetric(
+        horizontal: compact ? 10 : 14,
+        vertical: compact ? 6 : 8,
+      ),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(compact ? 6 : 8),
+      ),
+      child: Image.asset(
+        _kLogoAsset,
+        height: compact ? 22 : 28,
+        fit: BoxFit.contain,
+      ),
+    );
+  }
+
+  // ─────────────────────────────────────────────────────────────────────
+  // FORM
+  // ─────────────────────────────────────────────────────────────────────
+
   Widget _buildFormSection() {
+    final horizontalPadding =
+        context.responsive<double>(mobile: 24, tablet: 48, desktop: 64);
+    final titleSize =
+        context.responsive<double>(mobile: 32, tablet: 36, desktop: 40);
+
     return Container(
       color: Colors.white,
       padding: EdgeInsets.symmetric(
-        horizontal: context.isMobile ? 24 : 64,
+        horizontal: horizontalPadding,
         vertical: context.isMobile ? 40 : 0,
       ),
       child: Center(
         child: ConstrainedBox(
-          constraints: BoxConstraints(maxWidth: 440),
+          constraints: const BoxConstraints(maxWidth: 440),
           child: SingleChildScrollView(
             child: Form(
               key: _formKey,
@@ -204,13 +203,13 @@ class _LoginPageState extends State<LoginPage> {
                   Text(
                     'Sign in',
                     style: TextStyle(
-                      fontSize: context.isMobile ? 32 : 40,
+                      fontSize: titleSize,
                       fontWeight: FontWeight.w700,
-                      color: Color(0xFF1A1A1A),
+                      color: _kInk,
                       letterSpacing: -0.5,
                     ),
                   ),
-                  SizedBox(height: 8),
+                  const SizedBox(height: 8),
                   Text(
                     'Welcome back! Enter your details below.',
                     style: TextStyle(
@@ -219,63 +218,23 @@ class _LoginPageState extends State<LoginPage> {
                       height: 1.5,
                     ),
                   ),
-                  SizedBox(height: 40),
-                  Text(
-                    'Email address',
-                    style: TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w500,
-                      color: Color(0xFF1A1A1A),
-                    ),
-                  ),
-                  SizedBox(height: 8),
+                  const SizedBox(height: 40),
+                  _fieldLabel('Username'),
+                  const SizedBox(height: 8),
                   TextFormField(
                     controller: _usernameController,
-                    style: TextStyle(fontSize: 15, color: Color(0xFF1A1A1A)),
-                    decoration: InputDecoration(
-                      hintText: 'Your email address',
-                      hintStyle: TextStyle(color: Colors.grey[400], fontSize: 15),
-                      filled: true,
-                      fillColor: Colors.grey[50],
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(8),
-                        borderSide: BorderSide(color: Colors.grey[300]!),
-                      ),
-                      enabledBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(8),
-                        borderSide: BorderSide(color: Colors.grey[300]!),
-                      ),
-                      focusedBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(8),
-                        borderSide: BorderSide(color: Color(0xFF1A1A1A), width: 2),
-                      ),
-                      errorBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(8),
-                        borderSide: BorderSide(color: Colors.red[400]!),
-                      ),
-                      focusedErrorBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(8),
-                        borderSide: BorderSide(color: Colors.red[400]!, width: 2),
-                      ),
-                      contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-                    ),
-                    validator: (value) {
-                      if (value?.isEmpty ?? true) return 'Please enter your email';
-                      return null;
-                    },
+                    style: const TextStyle(fontSize: 15, color: _kInk),
+                    textInputAction: TextInputAction.next,
+                    onFieldSubmitted: (_) => _passwordFocus.requestFocus(),
+                    decoration: _inputDecoration(hint: 'Enter your username'),
+                    validator: (value) =>
+                        (value?.isEmpty ?? true) ? 'Please enter your username' : null,
                   ),
-                  SizedBox(height: 24),
+                  const SizedBox(height: 24),
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Text(
-                        'Password',
-                        style: TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w500,
-                          color: Color(0xFF1A1A1A),
-                        ),
-                      ),
+                      _fieldLabel('Password'),
                       GestureDetector(
                         onTap: _showForgotPassword,
                         child: Text(
@@ -289,45 +248,27 @@ class _LoginPageState extends State<LoginPage> {
                       ),
                     ],
                   ),
-                  SizedBox(height: 8),
+                  const SizedBox(height: 8),
                   TextFormField(
                     controller: _passwordController,
+                    focusNode: _passwordFocus,
                     obscureText: _obscurePassword,
-                    style: TextStyle(fontSize: 15, color: Color(0xFF1A1A1A)),
-                    decoration: InputDecoration(
-                      hintText: 'Password',
-                      hintStyle: TextStyle(color: Colors.grey[400], fontSize: 15),
-                      filled: true,
-                      fillColor: Colors.grey[50],
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(8),
-                        borderSide: BorderSide(color: Colors.grey[300]!),
-                      ),
-                      enabledBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(8),
-                        borderSide: BorderSide(color: Colors.grey[300]!),
-                      ),
-                      focusedBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(8),
-                        borderSide: BorderSide(color: Color(0xFF1A1A1A), width: 2),
-                      ),
-                      errorBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(8),
-                        borderSide: BorderSide(color: Colors.red[400]!),
-                      ),
-                      focusedErrorBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(8),
-                        borderSide: BorderSide(color: Colors.red[400]!, width: 2),
-                      ),
+                    style: const TextStyle(fontSize: 15, color: _kInk),
+                    textInputAction: TextInputAction.done,
+                    onFieldSubmitted: (_) => _login(),
+                    decoration: _inputDecoration(
+                      hint: 'Password',
                       suffixIcon: IconButton(
                         icon: Icon(
-                          _obscurePassword ? Icons.visibility_off_outlined : Icons.visibility_outlined,
+                          _obscurePassword
+                              ? Icons.visibility_off_outlined
+                              : Icons.visibility_outlined,
                           color: Colors.grey[500],
                           size: 20,
                         ),
-                        onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
+                        onPressed: () =>
+                            setState(() => _obscurePassword = !_obscurePassword),
                       ),
-                      contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 14),
                     ),
                     validator: (value) {
                       if (value?.isEmpty ?? true) return 'Please enter your password';
@@ -335,7 +276,7 @@ class _LoginPageState extends State<LoginPage> {
                       return null;
                     },
                   ),
-                  SizedBox(height: 16),
+                  const SizedBox(height: 16),
                   Row(
                     children: [
                       SizedBox(
@@ -343,36 +284,37 @@ class _LoginPageState extends State<LoginPage> {
                         width: 20,
                         child: Checkbox(
                           value: _keepLoggedIn,
-                          onChanged: (value) => setState(() => _keepLoggedIn = value ?? false),
-                          activeColor: Color(0xFF1A1A1A),
+                          onChanged: (value) =>
+                              setState(() => _keepLoggedIn = value ?? false),
+                          activeColor: _kInk,
                           side: BorderSide(color: Colors.grey[400]!),
                         ),
                       ),
-                      SizedBox(width: 10),
+                      const SizedBox(width: 10),
                       Text(
                         'Keep me logged in',
                         style: TextStyle(fontSize: 14, color: Colors.grey[700]),
                       ),
                     ],
                   ),
-                  SizedBox(height: 24),
+                  const SizedBox(height: 24),
                   Obx(() => _authController.isLoading.value
-                      ? Center(
-                          child: CircularProgressIndicator(color: Color(0xFF1A1A1A)),
+                      ? const Center(
+                          child: CircularProgressIndicator(color: _kInk),
                         )
                       : SizedBox(
                           height: 50,
                           child: ElevatedButton(
                             onPressed: _login,
                             style: ElevatedButton.styleFrom(
-                              backgroundColor: Color(0xFF1A1A1A),
+                              backgroundColor: _kInk,
                               foregroundColor: Colors.white,
                               elevation: 0,
                               shape: RoundedRectangleBorder(
                                 borderRadius: BorderRadius.circular(8),
                               ),
                             ),
-                            child: Text(
+                            child: const Text(
                               'Sign in',
                               style: TextStyle(
                                 fontSize: 16,
@@ -383,11 +325,13 @@ class _LoginPageState extends State<LoginPage> {
                           ),
                         )),
                   Obx(() {
-                    if (_authController.errorMessage.value.isEmpty) return SizedBox.shrink();
+                    if (_authController.errorMessage.value.isEmpty) {
+                      return const SizedBox.shrink();
+                    }
                     return Padding(
-                      padding: EdgeInsets.only(top: 16),
+                      padding: const EdgeInsets.only(top: 16),
                       child: Container(
-                        padding: EdgeInsets.all(12),
+                        padding: const EdgeInsets.all(12),
                         decoration: BoxDecoration(
                           color: Colors.red[50],
                           borderRadius: BorderRadius.circular(8),
@@ -396,7 +340,7 @@ class _LoginPageState extends State<LoginPage> {
                         child: Row(
                           children: [
                             Icon(Icons.error_outline, color: Colors.red[700], size: 18),
-                            SizedBox(width: 12),
+                            const SizedBox(width: 12),
                             Expanded(
                               child: Text(
                                 _authController.errorMessage.value,
@@ -412,53 +356,23 @@ class _LoginPageState extends State<LoginPage> {
                       ),
                     );
                   }),
-                  SizedBox(height: 24),
-                  Row(
-                    children: [
-                      Expanded(child: Divider(color: Colors.grey[300])),
-                      Padding(
-                        padding: EdgeInsets.symmetric(horizontal: 16),
-                        child: Text(
-                          'OR',
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: Colors.grey[500],
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
-                      ),
-                      Expanded(child: Divider(color: Colors.grey[300])),
-                    ],
-                  ),
-                  SizedBox(height: 24),
-                  Row(
-                    children: [
-                      Expanded(child: _buildSocialButton('GitHub', Icons.code)),
-                      SizedBox(width: 12),
-                      Expanded(child: _buildSocialButton('Google', Icons.g_mobiledata)),
-                    ],
-                  ),
-                  SizedBox(height: 32),
+                  const SizedBox(height: 32),
                   Center(
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(
-                          "Don't have an account? ",
-                          style: TextStyle(fontSize: 14, color: Colors.grey[600]),
-                        ),
-                        GestureDetector(
-                          onTap: _showSignUpInfo,
-                          child: Text(
-                            'Sign up',
+                    child: Text.rich(
+                      TextSpan(
+                        text: 'Need an account? ',
+                        style: TextStyle(fontSize: 14, color: Colors.grey[600]),
+                        children: const [
+                          TextSpan(
+                            text: 'Contact your system administrator.',
                             style: TextStyle(
-                              fontSize: 14,
-                              color: Color(0xFF1A1A1A),
+                              color: _kInk,
                               fontWeight: FontWeight.w600,
                             ),
                           ),
-                        ),
-                      ],
+                        ],
+                      ),
+                      textAlign: TextAlign.center,
                     ),
                   ),
                 ],
@@ -470,47 +384,42 @@ class _LoginPageState extends State<LoginPage> {
     );
   }
 
-  Widget _buildSocialButton(String label, IconData icon) {
-    return Container(
-      height: 48,
-      decoration: BoxDecoration(
-        color: Colors.white,
-        border: Border.all(color: Colors.grey[300]!),
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          onTap: () {
-            Get.snackbar(
-              'Info',
-              '$label sign-in is not configured',
-              backgroundColor: AppColors.info,
-              colorText: Colors.white,
-              snackPosition: SnackPosition.TOP,
-              margin: EdgeInsets.all(16),
-            );
-          },
-          borderRadius: BorderRadius.circular(8),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(icon, size: 20, color: Color(0xFF1A1A1A)),
-              SizedBox(width: 8),
-              Text(
-                label,
-                style: TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w500,
-                  color: Color(0xFF1A1A1A),
-                ),
-              ),
-            ],
-          ),
+  Widget _fieldLabel(String text) => Text(
+        text,
+        style: const TextStyle(
+          fontSize: 14,
+          fontWeight: FontWeight.w500,
+          color: _kInk,
         ),
-      ),
+      );
+
+  /// Shared field styling — both the username and password fields used to
+  /// repeat this border/fill block in full; centralising it here means a
+  /// future style tweak (e.g. a new focus color) only happens once.
+  InputDecoration _inputDecoration({required String hint, Widget? suffixIcon}) {
+    OutlineInputBorder border(Color color, [double width = 1]) => OutlineInputBorder(
+          borderRadius: BorderRadius.circular(8),
+          borderSide: BorderSide(color: color, width: width),
+        );
+
+    return InputDecoration(
+      hintText: hint,
+      hintStyle: TextStyle(color: Colors.grey[400], fontSize: 15),
+      filled: true,
+      fillColor: Colors.grey[50],
+      border: border(Colors.grey[300]!),
+      enabledBorder: border(Colors.grey[300]!),
+      focusedBorder: border(_kInk, 2),
+      errorBorder: border(Colors.red[400]!),
+      focusedErrorBorder: border(Colors.red[400]!, 2),
+      suffixIcon: suffixIcon,
+      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
     );
   }
+
+  // ─────────────────────────────────────────────────────────────────────
+  // ACTIONS
+  // ─────────────────────────────────────────────────────────────────────
 
   void _login() async {
     if (_formKey.currentState!.validate()) {
@@ -530,17 +439,6 @@ class _LoginPageState extends State<LoginPage> {
     }
   }
 
-  void _showSignUpInfo() {
-    Get.snackbar(
-      'Info',
-      'Contact system administrator for account creation',
-      backgroundColor: AppColors.info,
-      colorText: Colors.white,
-      snackPosition: SnackPosition.TOP,
-      margin: EdgeInsets.all(16),
-    );
-  }
-
   void _showForgotPassword() {
     Get.snackbar(
       'Info',
@@ -548,14 +446,7 @@ class _LoginPageState extends State<LoginPage> {
       backgroundColor: AppColors.info,
       colorText: Colors.white,
       snackPosition: SnackPosition.TOP,
-      margin: EdgeInsets.all(16),
+      margin: const EdgeInsets.all(16),
     );
-  }
-
-  @override
-  void dispose() {
-    _usernameController.dispose();
-    _passwordController.dispose();
-    super.dispose();
   }
 }

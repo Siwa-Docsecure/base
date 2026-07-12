@@ -29,9 +29,14 @@ class _UserManagementPageState extends State<UserManagementPage> {
   @override
   void initState() {
     super.initState();
-    // Auto-refresh on page load
-    userController.getAllUsers();
-    userController.getUserStats();
+    // Use postFrameCallback so GetX controller is fully registered first.
+    // Parallel calls ensure stats and list populate at the same time.
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      await Future.wait([
+        userController.getAllUsers(),
+        userController.getUserStats(),
+      ]);
+    });
   }
 
   @override
@@ -376,7 +381,12 @@ class _UserManagementPageState extends State<UserManagementPage> {
       final currentPage = userController.currentPage.value;
       final itemsPerPage = userController.itemsPerPage.value;
 
-      if (totalPages <= 0) return const SizedBox.shrink();
+      // Always show pagination if users are loaded, even when totalUsers
+      // or totalPages haven't been populated yet by the server response.
+      final loadedCount = userController.users.length;
+      final total       = userController.totalUsers.value;
+      if (loadedCount == 0 && total == 0 && totalPages <= 0)
+        return const SizedBox.shrink();
 
       return Container(
         padding: const EdgeInsets.all(16),
@@ -476,11 +486,19 @@ class _UserManagementPageState extends State<UserManagementPage> {
               ],
             ),
 
-            // Total count
-            Text(
-              'Total: ${userController.totalUsers.value} users',
-              style: const TextStyle(fontSize: 14, color: AppColors.textMedium),
-            ),
+            // Total count — server value when available, loaded count as fallback
+            Obx(() {
+              final serverTotal  = userController.totalUsers.value;
+              final displayTotal = serverTotal > 0
+                  ? serverTotal
+                  : userController.users.length;
+              final label = displayTotal == 1 ? 'user' : 'users';
+              return Text(
+                'Total: $displayTotal $label',
+                style: const TextStyle(
+                    fontSize: 14, color: AppColors.textMedium),
+              );
+            }),
           ],
         ),
       );

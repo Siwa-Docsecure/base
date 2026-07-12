@@ -222,7 +222,7 @@ class DeliveryController extends GetxController {
   // ============================================
 
   /// Replays all active filters on the current page — called after any mutation.
-  Future<void> _refreshCurrentPage() async {
+  Future<void> refreshCurrentPage() async {
     await getAllDeliveries(
       page: currentPage.value,
       search: searchQuery.value.isNotEmpty ? searchQuery.value : null,
@@ -433,7 +433,7 @@ class DeliveryController extends GetxController {
             backgroundColor: Colors.green,
             colorText: Colors.white,
           );
-          await _refreshCurrentPage();
+          await refreshCurrentPage();
           await getRecentDeliveries();
           return true;
         } else {
@@ -487,7 +487,7 @@ class DeliveryController extends GetxController {
           Get.snackbar('Success', 'Delivery updated successfully',
               backgroundColor: Colors.green, colorText: Colors.white);
           await getDeliveryById(deliveryId);
-          await _refreshCurrentPage();
+          await refreshCurrentPage();
           return true;
         } else {
           errorMessage.value = data['message'] ?? 'Failed to update delivery';
@@ -529,10 +529,12 @@ class DeliveryController extends GetxController {
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
         if (data['status'] == 'success') {
-          Get.snackbar('Success', 'Signature updated successfully',
-              backgroundColor: Colors.green, colorText: Colors.white);
+          // Refresh full list first so Signed chip updates in table
+          await refreshCurrentPage();
+          // Then fetch individual record to update selectedDelivery detail view
           await getDeliveryById(deliveryId);
-          await _refreshCurrentPage();
+          Get.snackbar('Success', 'Signature saved successfully',
+              backgroundColor: Colors.green, colorText: Colors.white);
           return true;
         } else {
           errorMessage.value = data['message'] ?? 'Failed to update signature';
@@ -576,7 +578,7 @@ class DeliveryController extends GetxController {
         if (data['status'] == 'success') {
           Get.snackbar('Success', 'PDF path updated successfully',
               backgroundColor: Colors.green, colorText: Colors.white);
-          await _refreshCurrentPage();
+          await refreshCurrentPage();
           return true;
         } else {
           errorMessage.value = data['message'] ?? 'Failed to update PDF path';
@@ -627,7 +629,7 @@ class DeliveryController extends GetxController {
           Get.snackbar('Success', 'Delivery deleted successfully',
               backgroundColor: Colors.green, colorText: Colors.white);
           deliveries.removeWhere((d) => d.deliveryId == deliveryId);
-          await _refreshCurrentPage();
+          await refreshCurrentPage();
           return true;
         } else {
           errorMessage.value = data['message'] ?? 'Failed to delete delivery';

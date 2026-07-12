@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:get/get.dart';
 import 'package:psms/constants/app_constants.dart';
 import 'package:psms/controllers/user_management_controller.dart';
 
@@ -12,53 +13,61 @@ class UserStatsWidget extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final stats = userController.userStats;
-    
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final isMobile = constraints.maxWidth < 600;
-        final crossAxisCount = isMobile ? 2 : 4;
-        
-        return GridView.count(
-          shrinkWrap: true,
-          physics: const NeverScrollableScrollPhysics(),
-          crossAxisCount: crossAxisCount,
-          crossAxisSpacing: 16,
-          mainAxisSpacing: 16,
-          childAspectRatio: isMobile ? 1.3 : 1.5,
-          children: [
-            _buildStatCard(
-              'Total Users',
-              stats['total_users']?.toString() ?? '0',
-              Icons.people,
-              AppColors.primary,
-              '${stats['active_users'] ?? 0} active',
-            ),
-            _buildStatCard(
-              'Admins',
-              stats['admin_users']?.toString() ?? '0',
-              Icons.admin_panel_settings,
-              AppColors.danger,
-              'Super users',
-            ),
-            _buildStatCard(
-              'Staff',
-              stats['staff_users']?.toString() ?? '0',
-              Icons.work,
-              AppColors.success,
-              'Team members',
-            ),
-            _buildStatCard(
-              'Clients',
-              stats['client_users']?.toString() ?? '0',
-              Icons.business,
-              AppColors.warning,
-              'External users',
-            ),
-          ],
-        );
-      },
-    );
+    // Obx so the grid rebuilds whenever getUserStats() completes and
+    // updates userController.totalUsers / userController.users (both Rx).
+    return Obx(() {
+      // Touch reactive fields to register dependency — forces rebuild
+      // when getAllUsers/getUserStats completes.
+      final _ = userController.totalUsers.value;
+      final stats = userController.userStats;
+
+      return LayoutBuilder(
+        builder: (context, constraints) {
+          final isMobile = constraints.maxWidth < 600;
+          final crossAxisCount = isMobile ? 2 : 4;
+
+          return GridView.count(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            crossAxisCount: crossAxisCount,
+            crossAxisSpacing: 16,
+            mainAxisSpacing: 16,
+            childAspectRatio: isMobile ? 1.3 : 1.5,
+            children: [
+              _buildStatCard(
+                'Total Users',
+                stats['total_users']?.toString() ??
+                    userController.totalUsers.value.toString(),
+                Icons.people,
+                AppColors.primary,
+                '${stats['active_users'] ?? 0} active',
+              ),
+              _buildStatCard(
+                'Admins',
+                stats['admin_users']?.toString() ?? '0',
+                Icons.admin_panel_settings,
+                AppColors.danger,
+                'Super users',
+              ),
+              _buildStatCard(
+                'Staff',
+                stats['staff_users']?.toString() ?? '0',
+                Icons.work,
+                AppColors.success,
+                'Team members',
+              ),
+              _buildStatCard(
+                'Clients',
+                stats['client_users']?.toString() ?? '0',
+                Icons.business,
+                AppColors.warning,
+                'External users',
+              ),
+            ],
+          );
+        },
+      );
+    });
   }
 
   Widget _buildStatCard(

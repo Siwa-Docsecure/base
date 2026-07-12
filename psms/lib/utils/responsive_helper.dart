@@ -26,6 +26,20 @@ class ResponsiveHelper {
 
   static double height(BuildContext context) =>
       MediaQuery.of(context).size.height;
+
+  /// Picks a value based on the current device class. `tablet` falls back
+  /// to `desktop` when not supplied, since a tablet layout is most often a
+  /// slightly scaled-down desktop layout rather than a third bespoke design.
+  static T value<T>(
+    BuildContext context, {
+    required T mobile,
+    T? tablet,
+    required T desktop,
+  }) {
+    if (isDesktop(context)) return desktop;
+    if (isTablet(context)) return tablet ?? desktop;
+    return mobile;
+  }
 }
 
 /// Context extension for cleaner syntax
@@ -33,7 +47,11 @@ extension ResponsiveContext on BuildContext {
   bool get isMobile => ResponsiveHelper.isMobile(this);
   bool get isTablet => ResponsiveHelper.isTablet(this);
   bool get isDesktop => ResponsiveHelper.isDesktop(this);
-  
+
   double get screenWidth => ResponsiveHelper.width(this);
   double get screenHeight => ResponsiveHelper.height(this);
+
+  /// `context.responsive<double>(mobile: 14, tablet: 16, desktop: 18)`
+  T responsive<T>({required T mobile, T? tablet, required T desktop}) =>
+      ResponsiveHelper.value(this, mobile: mobile, tablet: tablet, desktop: desktop);
 }

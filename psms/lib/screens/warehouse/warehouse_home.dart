@@ -10,7 +10,8 @@ import 'package:psms/screens/warehouse/users/user_management_page.dart';
 
 import 'collections/collections_page.dart';
 import 'delivery/delivery_management_screen.dart';
-import 'widgets/dashboard_page.dart';
+import 'reports/report_management_screen.dart';
+import 'dashboard/dashboard_page.dart';
 import 'widgets/placeholder_pages.dart';
 import 'widgets/warehouse_header.dart';
 import 'widgets/warehouse_sidebar.dart';
@@ -250,7 +251,7 @@ class _WarehouseHomePageState extends State<WarehouseHomePage> {
   Widget _getCurrentPage() {
     switch (_selectedIndex.value) {
       case 0:
-        return DashboardPage(authController: _authController);
+        return DashboardScreen();
       case 1:
         return BoxManagementScreen();
       case 2:
@@ -260,7 +261,7 @@ class _WarehouseHomePageState extends State<WarehouseHomePage> {
       case 4:
         return DeliveryManagementScreen();
       case 5:
-        return ReportsPage(authController: _authController);
+        return ReportManagementScreen();
       case 6:
         return UserManagementPage();
       case 7:
@@ -268,7 +269,7 @@ class _WarehouseHomePageState extends State<WarehouseHomePage> {
       case 8:
         return SettingsPage();
       default:
-        return DashboardPage(authController: _authController);
+        return DashboardScreen();
     }
   }
 

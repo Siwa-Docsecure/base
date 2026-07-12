@@ -8,10 +8,12 @@ import 'package:intl/intl.dart';
 import 'package:signature/signature.dart';
 import 'package:psms/constants/api_constants.dart';
 import 'package:psms/controllers/auth_controller.dart';
+import 'package:psms/controllers/client_management_controller.dart';
 import 'package:psms/controllers/collection_controller.dart';
 import 'package:psms/models/box_model.dart';
 import 'package:psms/models/collection_model.dart';
 import 'package:psms/models/user_model.dart';
+import 'package:psms/screens/warehouse/boxes/widgets/client_search_field.dart';
 
 class CollectionsPage extends StatefulWidget {
   const CollectionsPage({super.key});
@@ -22,6 +24,20 @@ class CollectionsPage extends StatefulWidget {
 class _CollectionsPageState extends State<CollectionsPage> {
   final CollectionController _ctrl = Get.put(CollectionController());
   final AuthController _auth = Get.find<AuthController>();
+  // Dedicated client source (same one used across the box screens),
+  // instead of CollectionController's own client cache — avoids relying
+  // on whatever partial list CollectionController happened to load, and
+  // gives us the searchable/scrollable picker. Lazy getter so it can
+  // never throw a LateInitializationError.
+  ClientManagementController? _clientCtrl;
+  ClientManagementController get clientCtrl {
+    if (_clientCtrl == null) {
+      _clientCtrl = Get.isRegistered<ClientManagementController>()
+          ? Get.find<ClientManagementController>()
+          : Get.put(ClientManagementController());
+    }
+    return _clientCtrl!;
+  }
 
   final TextEditingController _searchCtrl = TextEditingController();
   final TextEditingController _descCtrl = TextEditingController();
@@ -62,6 +78,15 @@ class _CollectionsPageState extends State<CollectionsPage> {
         penColor: Colors.black,
         exportBackgroundColor: Colors.white);
     _ctrl.initialize();
+
+    WidgetsBinding.instance.addPostFrameCallback((_) => _loadClients());
+  }
+
+  Future<void> _loadClients() async {
+    // fetchClients() is paginated (20/page by default) — bump the page
+    // size so this one call returns every client for the picker.
+    clientCtrl.itemsPerPage.value = 1000;
+    await clientCtrl.fetchClients(showLoading: true);
   }
 
   @override
@@ -983,28 +1008,23 @@ class _CollectionsPageState extends State<CollectionsPage> {
                       // Client & Staff section
                       _buildDialogSectionHeader('Client & Staff'),
                       const SizedBox(height: 12),
-                      Obx(() => DropdownButtonFormField<int>(
-                            value: _selectedClientId,
-                            decoration: _dialogInputDecoration(
-                                'Client', Icons.business),
-                            items: _ctrl.clients
-                                .map((c) => DropdownMenuItem(
-                                    value: c.clientId,
-                                    child: Text(c.clientName)))
-                                .toList(),
-                            onChanged: isView
-                                ? null
-                                : (v) {
-                                    setState(() {
-                                      _selectedClientId = v;
-                                      _selectedCollectorUserId = null;
-                                      _selectedBoxes.clear();
-                                    });
-                                    if (v != null) {
-                                      _loadClientUsers(v);
-                                      _loadClientBoxes(v);
-                                    }
-                                  },
+                      Obx(() => ClientSearchField(
+                            clients: clientCtrl.clients,
+                            selectedClientId: _selectedClientId,
+                            isLoading: clientCtrl.isLoading.value,
+                            enabled: !isView,
+                            label: 'Client *',
+                            onChanged: (v) {
+                              setState(() {
+                                _selectedClientId = v;
+                                _selectedCollectorUserId = null;
+                                _selectedBoxes.clear();
+                              });
+                              if (v != null) {
+                                _loadClientUsers(v);
+                                _loadClientBoxes(v);
+                              }
+                            },
                           )),
                       const SizedBox(height: 14),
                       Obx(() {

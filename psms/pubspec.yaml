@@ -46,6 +46,9 @@ dependencies:
   open_file: ^3.5.11
   file_picker: ^10.3.10
   fl_chart: ^0.71.0
+  image_picker: ^1.2.0
+  qr_flutter: ^4.1.0
+  mobile_scanner: ^6.0.11
 
 dev_dependencies:
   flutter_test:

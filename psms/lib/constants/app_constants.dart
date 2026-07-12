@@ -146,7 +146,7 @@ class AppTypography {
     color: color ?? AppColors.textDark,
   );
 
-  static TextStyle h4({Color? color}) => TextStyle(
+  static TextStyle h4(FontWeight w800, {Color? color}) => TextStyle(
     fontSize: heading4,
     fontWeight: semiBold,
     color: color ?? AppColors.textLight,

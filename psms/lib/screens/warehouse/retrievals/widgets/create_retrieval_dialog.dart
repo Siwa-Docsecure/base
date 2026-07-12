@@ -11,9 +11,11 @@ import 'package:get/get.dart';
 import 'package:intl/intl.dart';
 import 'package:signature/signature.dart';
 import 'package:psms/controllers/auth_controller.dart';
+import 'package:psms/controllers/client_management_controller.dart';
 import 'package:psms/controllers/retrieval_controller.dart';
 import 'package:psms/models/box_model.dart';
 import 'package:psms/models/client_model.dart';
+import 'package:psms/screens/warehouse/boxes/widgets/client_search_field.dart';
 
 class CreateRetrievalDialog extends StatefulWidget {
   const CreateRetrievalDialog({Key? key}) : super(key: key);
@@ -25,6 +27,19 @@ class CreateRetrievalDialog extends StatefulWidget {
 class _CreateRetrievalDialogState extends State<CreateRetrievalDialog> {
   final RetrievalController _ctrl = RetrievalController.instance;
   final TextEditingController _reasonController = TextEditingController();
+
+  // Dedicated client source (same one used across the box screens),
+  // instead of RetrievalController's own client cache. Lazy getter so it
+  // can never throw a LateInitializationError.
+  ClientManagementController? _clientCtrl;
+  ClientManagementController get clientCtrl {
+    if (_clientCtrl == null) {
+      _clientCtrl = Get.isRegistered<ClientManagementController>()
+          ? Get.find<ClientManagementController>()
+          : Get.put(ClientManagementController());
+    }
+    return _clientCtrl!;
+  }
 
   // Only staff signature is captured at creation time.
   final SignatureController _staffSigCtrl = SignatureController(
@@ -42,6 +57,14 @@ class _CreateRetrievalDialogState extends State<CreateRetrievalDialog> {
   void initState() {
     super.initState();
     _ctrl.clearSelectedBoxes();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _loadClients());
+  }
+
+  Future<void> _loadClients() async {
+    // fetchClients() is paginated (20/page by default) — bump the page
+    // size so this one call returns every client for the picker.
+    clientCtrl.itemsPerPage.value = 1000;
+    await clientCtrl.fetchClients(showLoading: true);
   }
 
   @override
@@ -263,20 +286,21 @@ class _CreateRetrievalDialogState extends State<CreateRetrievalDialog> {
       children: [
         _label('Select Client'),
         const SizedBox(height: 8),
-        Obx(() => DropdownButtonFormField<ClientModel>(
-              value: _selectedClient,
-              decoration: InputDecoration(
-                border:
-                    OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                contentPadding:
-                    const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-              ),
-              hint: const Text('Choose a client'),
-              items: _ctrl.clients
-                  .map((c) =>
-                      DropdownMenuItem(value: c, child: Text(c.clientName)))
-                  .toList(),
-              onChanged: (client) {
+        Obx(() => ClientSearchField(
+              clients: clientCtrl.clients,
+              selectedClientId: _selectedClient?.clientId,
+              isLoading: clientCtrl.isLoading.value,
+              label: 'Choose a client',
+              onChanged: (clientId) {
+                ClientModel? client;
+                if (clientId != null) {
+                  for (final c in clientCtrl.clients) {
+                    if (c.clientId == clientId) {
+                      client = c;
+                      break;
+                    }
+                  }
+                }
                 setState(() => _selectedClient = client);
                 if (client != null) {
                   _ctrl.getClientStoredBoxes(client.clientId);

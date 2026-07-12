@@ -5,6 +5,8 @@ import 'package:psms/controllers/auth_controller.dart';
 import 'package:psms/controllers/box_controller.dart';
 import 'package:psms/controllers/client_management_controller.dart';
 import 'package:psms/controllers/collection_controller.dart';
+import 'package:psms/controllers/dashboard_controller.dart';
+import 'package:psms/controllers/report_controller.dart';
 import 'package:psms/controllers/storage_controller.dart';
 import 'package:psms/controllers/user_management_controller.dart';
 
@@ -24,6 +26,9 @@ void main() async {
   Get.put(ClientManagementController());
   Get.put(CollectionController());
   Get.put(StorageController());
+  Get.put(DashboardController());
+  Get.put(ReportController());
+  Get.put(ReportController());
   
   runApp(const PSMSApp());
 }

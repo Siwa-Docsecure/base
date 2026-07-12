@@ -1,0 +1,709 @@
+{
+  "info": {
+    "name": "PSMS API - User Management",
+    "description": "Complete user management endpoints with granular control over staff and clients",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://localhost:3000/api",
+      "type": "string"
+    },
+    {
+      "key": "access_token",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "test_user_id",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "test_client_id",
+      "value": "1",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "0. Setup - Login as Admin",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "if (pm.response.code === 200) {",
+              "    var jsonData = pm.response.json();",
+              "    pm.collectionVariables.set('access_token', jsonData.data.accessToken);",
+              "}"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"username\": \"admin\",\n  \"password\": \"admin123\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "{{base_url}}/auth/login",
+          "host": ["{{base_url}}"],
+          "path": ["auth", "login"]
+        }
+      }
+    },
+    {
+      "name": "1. User CRUD",
+      "item": [
+        {
+          "name": "1.1 Get All Users",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/users?page=1&limit=20",
+              "host": ["{{base_url}}"],
+              "path": ["users"],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "20"
+                },
+                {
+                  "key": "role",
+                  "value": "staff",
+                  "disabled": true
+                },
+                {
+                  "key": "isActive",
+                  "value": "true",
+                  "disabled": true
+                },
+                {
+                  "key": "clientId",
+                  "value": "1",
+                  "disabled": true
+                },
+                {
+                  "key": "search",
+                  "value": "john",
+                  "disabled": true
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "1.2 Get User Statistics",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/users/stats",
+              "host": ["{{base_url}}"],
+              "path": ["users", "stats"]
+            }
+          }
+        },
+        {
+          "name": "1.3 Get Single User",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/users/1",
+              "host": ["{{base_url}}"],
+              "path": ["users", "1"]
+            }
+          }
+        },
+        {
+          "name": "1.4 Create Staff User",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.collectionVariables.set('test_user_id', jsonData.data.userId);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"teststaff\",\n  \"email\": \"teststaff@psms.com\",\n  \"password\": \"password123\",\n  \"role\": \"staff\",\n  \"permissions\": {\n    \"canCreateBoxes\": true,\n    \"canEditBoxes\": true,\n    \"canViewReports\": true\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/users",
+              "host": ["{{base_url}}"],
+              "path": ["users"]
+            }
+          }
+        },
+        {
+          "name": "1.5 Create Client User",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"testclient\",\n  \"email\": \"testclient@acme.com\",\n  \"password\": \"password123\",\n  \"role\": \"client\",\n  \"clientId\": 1,\n  \"permissions\": {\n    \"canViewReports\": true\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/users",
+              "host": ["{{base_url}}"],
+              "path": ["users"]
+            }
+          }
+        },
+        {
+          "name": "1.6 Update User",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"teststaff_updated\",\n  \"email\": \"teststaff_updated@psms.com\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/users/{{test_user_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["users", "{{test_user_id}}"]
+            }
+          }
+        },
+        {
+          "name": "1.7 Reset User Password",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"newPassword\": \"newSecurePassword123\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/users/{{test_user_id}}/reset-password",
+              "host": ["{{base_url}}"],
+              "path": ["users", "{{test_user_id}}", "reset-password"]
+            }
+          }
+        },
+        {
+          "name": "1.8 Activate User",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/users/{{test_user_id}}/activate",
+              "host": ["{{base_url}}"],
+              "path": ["users", "{{test_user_id}}", "activate"]
+            }
+          }
+        },
+        {
+          "name": "1.9 Deactivate User",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/users/{{test_user_id}}/deactivate",
+              "host": ["{{base_url}}"],
+              "path": ["users", "{{test_user_id}}", "deactivate"]
+            }
+          }
+        },
+        {
+          "name": "1.10 Delete User",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/users/{{test_user_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["users", "{{test_user_id}}"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "2. Query Users",
+      "item": [
+        {
+          "name": "2.1 Get Users by Role - Admin",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/users/role/admin",
+              "host": ["{{base_url}}"],
+              "path": ["users", "role", "admin"]
+            }
+          }
+        },
+        {
+          "name": "2.2 Get Users by Role - Staff",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/users/role/staff",
+              "host": ["{{base_url}}"],
+              "path": ["users", "role", "staff"]
+            }
+          }
+        },
+        {
+          "name": "2.3 Get Users by Role - Client",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/users/role/client",
+              "host": ["{{base_url}}"],
+              "path": ["users", "role", "client"]
+            }
+          }
+        },
+        {
+          "name": "2.4 Get Users by Client",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/users/client/{{test_client_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["users", "client", "{{test_client_id}}"]
+            }
+          }
+        },
+        {
+          "name": "2.5 Search Users",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/users?search=admin&isActive=true",
+              "host": ["{{base_url}}"],
+              "path": ["users"],
+              "query": [
+                {
+                  "key": "search",
+                  "value": "admin"
+                },
+                {
+                  "key": "isActive",
+                  "value": "true"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "3. Client Mapping",
+      "item": [
+        {
+          "name": "3.1 Assign User to Client",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"clientId\": 1\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/users/{{test_user_id}}/assign-client",
+              "host": ["{{base_url}}"],
+              "path": ["users", "{{test_user_id}}", "assign-client"]
+            }
+          }
+        },
+        {
+          "name": "3.2 Change User Client",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"clientId\": 2\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/users/{{test_user_id}}/change-client",
+              "host": ["{{base_url}}"],
+              "path": ["users", "{{test_user_id}}", "change-client"]
+            }
+          }
+        },
+        {
+          "name": "3.3 Remove User from Client",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/users/{{test_user_id}}/remove-client",
+              "host": ["{{base_url}}"],
+              "path": ["users", "{{test_user_id}}", "remove-client"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "4. Permission Management",
+      "item": [
+        {
+          "name": "4.1 Get User Permissions",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/users/{{test_user_id}}/permissions",
+              "host": ["{{base_url}}"],
+              "path": ["users", "{{test_user_id}}", "permissions"]
+            }
+          }
+        },
+        {
+          "name": "4.2 Update All Permissions",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"permissions\": {\n    \"canCreateBoxes\": true,\n    \"canEditBoxes\": true,\n    \"canDeleteBoxes\": false,\n    \"canCreateCollections\": true,\n    \"canCreateRetrievals\": true,\n    \"canCreateDeliveries\": true,\n    \"canViewReports\": true,\n    \"canManageUsers\": false\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/users/{{test_user_id}}/permissions",
+              "host": ["{{base_url}}"],
+              "path": ["users", "{{test_user_id}}", "permissions"]
+            }
+          }
+        },
+        {
+          "name": "4.3 Grant Specific Permission",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"permission\": \"canDeleteBoxes\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/users/{{test_user_id}}/permissions/grant",
+              "host": ["{{base_url}}"],
+              "path": ["users", "{{test_user_id}}", "permissions", "grant"]
+            }
+          }
+        },
+        {
+          "name": "4.4 Revoke Specific Permission",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"permission\": \"canDeleteBoxes\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/users/{{test_user_id}}/permissions/revoke",
+              "host": ["{{base_url}}"],
+              "path": ["users", "{{test_user_id}}", "permissions", "revoke"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "5. Bulk Operations",
+      "item": [
+        {
+          "name": "5.1 Bulk Create Users",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"users\": [\n    {\n      \"username\": \"bulk_staff1\",\n      \"email\": \"bulk_staff1@psms.com\",\n      \"password\": \"password123\",\n      \"role\": \"staff\"\n    },\n    {\n      \"username\": \"bulk_staff2\",\n      \"email\": \"bulk_staff2@psms.com\",\n      \"password\": \"password123\",\n      \"role\": \"staff\"\n    },\n    {\n      \"username\": \"bulk_client1\",\n      \"email\": \"bulk_client1@acme.com\",\n      \"password\": \"password123\",\n      \"role\": \"client\",\n      \"clientId\": 1\n    }\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/users/bulk/create",
+              "host": ["{{base_url}}"],
+              "path": ["users", "bulk", "create"]
+            }
+          }
+        },
+        {
+          "name": "5.2 Bulk Activate Users",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"userIds\": [2, 3]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/users/bulk/activate",
+              "host": ["{{base_url}}"],
+              "path": ["users", "bulk", "activate"]
+            }
+          }
+        },
+        {
+          "name": "5.3 Bulk Deactivate Users",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"userIds\": [2, 3]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/users/bulk/deactivate",
+              "host": ["{{base_url}}"],
+              "path": ["users", "bulk", "deactivate"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "6. Role Management",
+      "item": [
+        {
+          "name": "6.1 Change User Role",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"role\": \"staff\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/users/{{test_user_id}}/role",
+              "host": ["{{base_url}}"],
+              "path": ["users", "{{test_user_id}}", "role"]
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

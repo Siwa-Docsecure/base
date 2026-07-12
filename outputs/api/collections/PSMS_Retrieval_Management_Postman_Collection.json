@@ -1,0 +1,679 @@
+{
+  "info": {
+    "name": "PSMS - Retrieval Management",
+    "description": "Complete retrieval management API endpoints for PSMS\n\n**Features:**\n- Retrieval CRUD operations\n- Digital signature workflow (client + staff)\n- Automatic box status management\n- PDF receipt tracking\n- Filtering & pagination\n- Reports and analytics\n\n**Signature Workflow:**\n1. Staff creates retrieval (box stays 'stored')\n2. Client signs retrieval\n3. Box automatically marked as 'retrieved' ✅\n\n**Setup:**\n1. Run '0. Setup - Login' to get token\n2. Token auto-saves to collection variable\n3. All requests use {{access_token}}\n\n**Default Credentials:**\n- Admin: admin / admin123\n- Staff: staff1 / admin123\n- Client: client1 / admin123",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://localhost:3000",
+      "type": "string"
+    },
+    {
+      "key": "access_token",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "test_retrieval_id",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "test_client_id",
+      "value": "1",
+      "type": "string"
+    },
+    {
+      "key": "test_box_id",
+      "value": "5",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "0. Setup",
+      "item": [
+        {
+          "name": "Login as Admin",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "    const response = pm.response.json();",
+                  "    pm.collectionVariables.set('access_token', response.data.accessToken);",
+                  "    pm.environment.set('access_token', response.data.accessToken);",
+                  "    console.log('✅ Admin token saved');",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"admin\",\n  \"password\": \"admin123\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/auth/login",
+              "host": ["{{base_url}}"],
+              "path": ["api", "auth", "login"]
+            }
+          }
+        },
+        {
+          "name": "Login as Staff",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "    const response = pm.response.json();",
+                  "    pm.collectionVariables.set('access_token', response.data.accessToken);",
+                  "    pm.environment.set('access_token', response.data.accessToken);",
+                  "    console.log('✅ Staff token saved');",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"staff1\",\n  \"password\": \"admin123\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/auth/login",
+              "host": ["{{base_url}}"],
+              "path": ["api", "auth", "login"]
+            }
+          }
+        },
+        {
+          "name": "Login as Client",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "    const response = pm.response.json();",
+                  "    pm.collectionVariables.set('access_token', response.data.accessToken);",
+                  "    pm.environment.set('access_token', response.data.accessToken);",
+                  "    console.log('✅ Client token saved');",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"client1\",\n  \"password\": \"admin123\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/auth/login",
+              "host": ["{{base_url}}"],
+              "path": ["api", "auth", "login"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "1. Retrieval Operations",
+      "item": [
+        {
+          "name": "Get All Retrievals",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/retrievals?page=1&limit=20",
+              "host": ["{{base_url}}"],
+              "path": ["api", "retrievals"],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "20"
+                },
+                {
+                  "key": "clientId",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "boxId",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "startDate",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "endDate",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "search",
+                  "value": "",
+                  "disabled": true
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Retrieval by ID",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/retrievals/1",
+              "host": ["{{base_url}}"],
+              "path": ["api", "retrievals", "1"]
+            }
+          }
+        },
+        {
+          "name": "Get Client's Retrievals",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/retrievals/client/{{test_client_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["api", "retrievals", "client", "{{test_client_id}}"]
+            }
+          }
+        },
+        {
+          "name": "Get Box's Retrieval History",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/retrievals/box/{{test_box_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["api", "retrievals", "box", "{{test_box_id}}"]
+            }
+          }
+        },
+        {
+          "name": "Create Retrieval",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "    const response = pm.response.json();",
+                  "    pm.collectionVariables.set('test_retrieval_id', response.data.retrievalId);",
+                  "    console.log('✅ Retrieval created:', response.data.retrievalId);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"clientId\": 1,\n  \"boxId\": 5,\n  \"retrievalDate\": \"2025-02-15\",\n  \"retrievedBy\": \"Jane Smith\",\n  \"reason\": \"Annual audit requirements\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/retrievals",
+              "host": ["{{base_url}}"],
+              "path": ["api", "retrievals"]
+            }
+          }
+        },
+        {
+          "name": "Delete Retrieval",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/retrievals/{{test_retrieval_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["api", "retrievals", "{{test_retrieval_id}}"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "2. Signature Workflow",
+      "item": [
+        {
+          "name": "Get Pending Retrievals (All)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/retrievals/pending?limit=50",
+              "host": ["{{base_url}}"],
+              "path": ["api", "retrievals", "pending"],
+              "query": [
+                {
+                  "key": "limit",
+                  "value": "50"
+                },
+                {
+                  "key": "clientId",
+                  "value": "",
+                  "disabled": true
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get My Pending Retrievals (Client)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/retrievals/pending/my",
+              "host": ["{{base_url}}"],
+              "path": ["api", "retrievals", "pending", "my"]
+            }
+          }
+        },
+        {
+          "name": "Add Client Signature (Marks Box Retrieved)",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"clientSignature\": \"data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/retrievals/{{test_retrieval_id}}/signatures",
+              "host": ["{{base_url}}"],
+              "path": ["api", "retrievals", "{{test_retrieval_id}}", "signatures"]
+            }
+          }
+        },
+        {
+          "name": "Add Staff Signature",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"staffSignature\": \"data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/retrievals/{{test_retrieval_id}}/signatures",
+              "host": ["{{base_url}}"],
+              "path": ["api", "retrievals", "{{test_retrieval_id}}", "signatures"]
+            }
+          }
+        },
+        {
+          "name": "Add Both Signatures",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"clientSignature\": \"data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==\",\n  \"staffSignature\": \"data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/retrievals/{{test_retrieval_id}}/signatures",
+              "host": ["{{base_url}}"],
+              "path": ["api", "retrievals", "{{test_retrieval_id}}", "signatures"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "3. PDF & Status",
+      "item": [
+        {
+          "name": "Update PDF Path",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"pdfPath\": \"/receipts/retrieval_123.pdf\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/retrievals/{{test_retrieval_id}}/pdf",
+              "host": ["{{base_url}}"],
+              "path": ["api", "retrievals", "{{test_retrieval_id}}", "pdf"]
+            }
+          }
+        },
+        {
+          "name": "Mark Box as Retrieved (Manual)",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/retrievals/box/{{test_box_id}}/mark-retrieved",
+              "host": ["{{base_url}}"],
+              "path": ["api", "retrievals", "box", "{{test_box_id}}", "mark-retrieved"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "4. Statistics & Analytics",
+      "item": [
+        {
+          "name": "Get Retrieval Statistics",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/retrievals/stats",
+              "host": ["{{base_url}}"],
+              "path": ["api", "retrievals", "stats"]
+            }
+          }
+        },
+        {
+          "name": "Get Recent Retrievals",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/retrievals/recent?limit=10",
+              "host": ["{{base_url}}"],
+              "path": ["api", "retrievals", "recent"],
+              "query": [
+                {
+                  "key": "limit",
+                  "value": "10"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "5. Reports",
+      "item": [
+        {
+          "name": "Summary Report",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/retrievals/reports/summary?startDate=2025-02-01&endDate=2025-02-28",
+              "host": ["{{base_url}}"],
+              "path": ["api", "retrievals", "reports", "summary"],
+              "query": [
+                {
+                  "key": "startDate",
+                  "value": "2025-02-01"
+                },
+                {
+                  "key": "endDate",
+                  "value": "2025-02-28"
+                },
+                {
+                  "key": "clientId",
+                  "value": "",
+                  "disabled": true
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "By Client Report",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/retrievals/reports/by-client?startDate=2025-01-01",
+              "host": ["{{base_url}}"],
+              "path": ["api", "retrievals", "reports", "by-client"],
+              "query": [
+                {
+                  "key": "startDate",
+                  "value": "2025-01-01"
+                },
+                {
+                  "key": "endDate",
+                  "value": "",
+                  "disabled": true
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "6. Workflow Tests",
+      "item": [
+        {
+          "name": "Complete Workflow - 1. Create",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "    const response = pm.response.json();",
+                  "    pm.collectionVariables.set('test_retrieval_id', response.data.retrievalId);",
+                  "    console.log('Step 1: Retrieval created:', response.data.retrievalId);",
+                  "    console.log('Next: Run \"Complete Workflow - 2. Client Signs\"');",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"clientId\": 1,\n  \"boxId\": 2,\n  \"retrievalDate\": \"2025-02-15\",\n  \"retrievedBy\": \"Jane Smith\",\n  \"reason\": \"Workflow test\",\n  \"staffSignature\": \"data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/retrievals",
+              "host": ["{{base_url}}"],
+              "path": ["api", "retrievals"]
+            }
+          }
+        },
+        {
+          "name": "Complete Workflow - 2. Client Signs",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "    const response = pm.response.json();",
+                  "    console.log('Step 2: Client signed - Box status:', response.data.boxStatus);",
+                  "    console.log('✅ Workflow complete! Box marked as retrieved.');",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"clientSignature\": \"data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/retrievals/{{test_retrieval_id}}/signatures",
+              "host": ["{{base_url}}"],
+              "path": ["api", "retrievals", "{{test_retrieval_id}}", "signatures"]
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

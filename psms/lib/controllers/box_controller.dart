@@ -1,5 +1,6 @@
 // box_controller.dart
 import 'dart:convert';
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:http/http.dart' as http;
@@ -9,6 +10,8 @@ import 'package:psms/models/report_models.dart';
 import 'package:psms/models/box_model.dart';
 import 'package:psms/models/client_model.dart';
 import 'package:psms/models/racking_label_model.dart';
+import 'package:http/http.dart' as http;
+import 'package:path/path.dart' as path;
 
 class BoxController extends GetxController {
   static BoxController get instance => Get.find();
@@ -409,6 +412,195 @@ class BoxController extends GetxController {
       isLoading.value = false;
     }
     return null;
+  }
+
+  // Inside BoxController class
+  Future<bool> createBoxWithImage(
+      CreateBoxRequest request, File? imageFile) async {
+    if (!canCreateBoxes) {
+      errorMessage.value = 'You do not have permission to create boxes';
+      Get.snackbar('Permission Denied', errorMessage.value,
+          backgroundColor: Colors.orange, colorText: Colors.white);
+      return false;
+    }
+
+    if (request.boxIndex.trim().isEmpty) {
+      errorMessage.value = 'Box index is required';
+      Get.snackbar('Validation Error', errorMessage.value,
+          backgroundColor: Colors.red, colorText: Colors.white);
+      return false;
+    }
+
+    String? clientCode = await getClientCodeAsync(request.clientId);
+    if (clientCode == null || clientCode.isEmpty) {
+      errorMessage.value = 'Client not found or client code is empty';
+      Get.snackbar('Error', errorMessage.value,
+          backgroundColor: Colors.red, colorText: Colors.white);
+      return false;
+    }
+
+    final fullBoxNumber =
+        BoxNumberHelper.formatBoxNumber(clientCode, request.boxIndex);
+    isLoading.value = true;
+    errorMessage.value = '';
+
+    try {
+      final uri = Uri.parse('${ApiConstants.baseUrl}${ApiConstants.boxes}');
+      if (imageFile != null) {
+        var multipartRequest = http.MultipartRequest('POST', uri);
+        multipartRequest.headers.addAll(getAuthHeaders());
+        // Add fields
+        multipartRequest.fields['clientId'] = request.clientId.toString();
+        multipartRequest.fields['boxIndex'] = request.boxIndex;
+        if (request.rackingLabelId != null)
+          multipartRequest.fields['rackingLabelId'] =
+              request.rackingLabelId!.toString();
+        multipartRequest.fields['boxDescription'] = request.boxDescription;
+        multipartRequest.fields['dateReceived'] = request.dateReceived;
+        multipartRequest.fields['retentionYears'] =
+            request.retentionYears.toString();
+        if (request.boxSize != null)
+          multipartRequest.fields['boxSize'] = request.boxSize!;
+        if (request.dataYears != null)
+          multipartRequest.fields['dataYears'] = request.dataYears!;
+        if (request.dateRange != null)
+          multipartRequest.fields['dateRange'] = request.dateRange!;
+        // Attach file
+        var fileStream =
+            http.MultipartFile.fromPath('boxImage', imageFile.path);
+        multipartRequest.files.add(await fileStream);
+
+        var streamedResponse = await multipartRequest.send();
+        var response = await http.Response.fromStream(streamedResponse);
+        return _handleCreateResponse(response, fullBoxNumber);
+      } else {
+        // Fallback to JSON
+        final response = await http.post(
+          uri,
+          headers: getAuthHeaders(),
+          body: json.encode(request.toJson()),
+        );
+        return _handleCreateResponse(response, fullBoxNumber);
+      }
+    } catch (e) {
+      errorMessage.value = 'Connection error: $e';
+      Get.snackbar('Error', 'Connection error: $e',
+          backgroundColor: Colors.red, colorText: Colors.white);
+      return false;
+    } finally {
+      isLoading.value = false;
+    }
+  }
+
+  Future<bool> _handleCreateResponse(
+      http.Response response, String fullBoxNumber) async {
+    if (response.statusCode == 201) {
+      final responseData = json.decode(response.body);
+      if (responseData['status'] == 'success') {
+        Get.snackbar(
+          'Success',
+          'Box created successfully\nBox Number: $fullBoxNumber',
+          backgroundColor: Colors.green,
+          colorText: Colors.white,
+          duration: Duration(seconds: 3),
+        );
+        await _refreshCurrentPage();
+        return true;
+      } else {
+        errorMessage.value = responseData['message'];
+        Get.snackbar('Error', responseData['message'],
+            backgroundColor: Colors.red, colorText: Colors.white);
+      }
+    } else {
+      final errorResponse = json.decode(response.body);
+      errorMessage.value = errorResponse['message'] ?? 'Failed to create box';
+      Get.snackbar('Error', errorMessage.value,
+          backgroundColor: Colors.red, colorText: Colors.white);
+    }
+    return false;
+  }
+
+  Future<bool> updateBoxWithImage(
+      int boxId, UpdateBoxRequest request, File? imageFile) async {
+    if (!canEditBoxes) {
+      errorMessage.value = 'You do not have permission to edit boxes';
+      Get.snackbar('Permission Denied', errorMessage.value,
+          backgroundColor: Colors.orange, colorText: Colors.white);
+      return false;
+    }
+
+    isLoading.value = true;
+    errorMessage.value = '';
+
+    try {
+      final uri = Uri.parse(
+          '${ApiConstants.baseUrl}${ApiConstants.boxById(boxId.toString())}');
+      if (imageFile != null) {
+        var multipartRequest = http.MultipartRequest('PUT', uri);
+        multipartRequest.headers.addAll(getAuthHeaders());
+        // Add fields
+        if (request.boxDescription != null)
+          multipartRequest.fields['boxDescription'] = request.boxDescription!;
+        if (request.rackingLabelId != null)
+          multipartRequest.fields['rackingLabelId'] =
+              request.rackingLabelId!.toString();
+        if (request.retentionYears != null)
+          multipartRequest.fields['retentionYears'] =
+              request.retentionYears!.toString();
+        if (request.boxSize != null)
+          multipartRequest.fields['boxSize'] = request.boxSize!;
+        if (request.dataYears != null)
+          multipartRequest.fields['dataYears'] = request.dataYears!;
+        if (request.dateRange != null)
+          multipartRequest.fields['dateRange'] = request.dateRange!;
+        // Attach file
+        var fileStream =
+            http.MultipartFile.fromPath('boxImage', imageFile.path);
+        multipartRequest.files.add(await fileStream);
+
+        var streamedResponse = await multipartRequest.send();
+        var response = await http.Response.fromStream(streamedResponse);
+        return _handleUpdateResponse(response);
+      } else {
+        final response = await http.put(
+          uri,
+          headers: getAuthHeaders(),
+          body: json.encode(request.toJson()),
+        );
+        return _handleUpdateResponse(response);
+      }
+    } catch (e) {
+      errorMessage.value = 'Connection error: $e';
+      Get.snackbar('Error', 'Connection error: $e',
+          backgroundColor: Colors.red, colorText: Colors.white);
+      return false;
+    } finally {
+      isLoading.value = false;
+    }
+  }
+
+  Future<bool> _handleUpdateResponse(http.Response response) async {
+    if (response.statusCode == 200) {
+      final responseData = json.decode(response.body);
+      if (responseData['status'] == 'success') {
+        Get.snackbar('Success', 'Box updated successfully',
+            backgroundColor: Colors.green, colorText: Colors.white);
+        await getBoxById(
+            int.parse(responseData['data']?['boxId']?.toString() ?? '0'));
+        await _refreshCurrentPage();
+        return true;
+      } else {
+        errorMessage.value = responseData['message'];
+        Get.snackbar('Error', responseData['message'],
+            backgroundColor: Colors.red, colorText: Colors.white);
+      }
+    } else {
+      final errorResponse = json.decode(response.body);
+      errorMessage.value = errorResponse['message'] ?? 'Failed to update box';
+      Get.snackbar('Error', errorMessage.value,
+          backgroundColor: Colors.red, colorText: Colors.white);
+    }
+    return false;
   }
 
   Future<bool> createBox(CreateBoxRequest request) async {

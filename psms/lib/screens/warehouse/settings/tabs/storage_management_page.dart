@@ -1,4 +1,3 @@
-// storage_management_page.dart
 import 'dart:ui';
 import 'package:flutter/material.dart' hide SearchBar;
 import 'package:get/get.dart';
@@ -113,7 +112,7 @@ class _StorageManagementPageState extends State<StorageManagementPage>
           'Storage Management',
           style: ResponsiveHelper.isMobile(context)
               ? AppTypography.h5(fontWeight: FontWeight.w600)
-              : AppTypography.h4(color: Colors.black),
+              : AppTypography.h4(color: Colors.black, FontWeight.w600),
         ),
         actions: [
           IconButton(
@@ -737,7 +736,7 @@ class _StorageManagementPageState extends State<StorageManagementPage>
               'Storage Overview',
               style: ResponsiveHelper.isMobile(context)
                   ? AppTypography.h5(fontWeight: FontWeight.w600)
-                  : AppTypography.h4(),
+                  : AppTypography.h4(FontWeight.w500),
             ),
             const SizedBox(height: 16),
             GridView.count(
@@ -780,7 +779,7 @@ class _StorageManagementPageState extends State<StorageManagementPage>
               'Location Status Distribution',
               style: ResponsiveHelper.isMobile(context)
                   ? AppTypography.h5(fontWeight: FontWeight.w600)
-                  : AppTypography.h4(),
+                  : AppTypography.h4(FontWeight.w500),
             ),
             const SizedBox(height: 16),
             CustomCard(
@@ -824,7 +823,7 @@ class _StorageManagementPageState extends State<StorageManagementPage>
               'Box Count per Location (Top 10)',
               style: ResponsiveHelper.isMobile(context)
                   ? AppTypography.h5(fontWeight: FontWeight.w600)
-                  : AppTypography.h4(),
+                  : AppTypography.h4(FontWeight.w500),
             ),
             const SizedBox(height: 16),
             CustomCard(
@@ -900,7 +899,7 @@ class _StorageManagementPageState extends State<StorageManagementPage>
               'Recent Activities',
               style: ResponsiveHelper.isMobile(context)
                   ? AppTypography.h5(fontWeight: FontWeight.w600)
-                  : AppTypography.h4(),
+                  : AppTypography.h4(FontWeight.w500),
             ),
             const SizedBox(height: 16),
             CustomCard(
@@ -1002,7 +1001,7 @@ class _StorageManagementPageState extends State<StorageManagementPage>
               'System Status',
               style: ResponsiveHelper.isMobile(context)
                   ? AppTypography.h5(fontWeight: FontWeight.w600)
-                  : AppTypography.h4(),
+                  : AppTypography.h4(FontWeight.w500),
             ),
             const SizedBox(height: 8),
             Text(
@@ -1408,7 +1407,7 @@ class _StorageManagementPageState extends State<StorageManagementPage>
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     Text('Storage Location Details',
-                        style: AppTypography.h4(color: Colors.black)),
+                        style: AppTypography.h4(color: Colors.black,  FontWeight.w600)),
                     IconButton(
                       icon: const Icon(Icons.close),
                       onPressed: () => Get.back(),

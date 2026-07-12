@@ -14,9 +14,11 @@ import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
 import 'package:psms/controllers/auth_controller.dart';
+import 'package:psms/controllers/client_management_controller.dart';
 import 'package:psms/controllers/delivery_controller.dart';
 import 'package:psms/models/delivery_model.dart';
 import 'package:share_plus/share_plus.dart';
+import 'package:psms/screens/warehouse/boxes/widgets/client_search_field.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -28,19 +30,30 @@ class DeliveryManagementScreen extends StatefulWidget {
       _DeliveryManagementScreenState();
 }
 
-class _DeliveryManagementScreenState
-    extends State<DeliveryManagementScreen> {
-  final DeliveryController _ctrl   = Get.put(DeliveryController());
-  final AuthController     _auth   = Get.find<AuthController>();
+class _DeliveryManagementScreenState extends State<DeliveryManagementScreen> {
+  final DeliveryController _ctrl = Get.put(DeliveryController());
+  final AuthController _auth = Get.find<AuthController>();
   final TextEditingController _searchController = TextEditingController();
+  // Dedicated client source (same one used across the box screens),
+  // instead of DeliveryController's own client cache. Lazy getter so it
+  // can never throw a LateInitializationError.
+  ClientManagementController? _clientCtrl;
+  ClientManagementController get clientCtrl {
+    if (_clientCtrl == null) {
+      _clientCtrl = Get.isRegistered<ClientManagementController>()
+          ? Get.find<ClientManagementController>()
+          : Get.put(ClientManagementController());
+    }
+    return _clientCtrl!;
+  }
 
   String _selectedFilter = 'all'; // 'all' | 'by_client' | 'recent'
-  String _searchQuery    = '';
+  String _searchQuery = '';
 
   // Date + client filter state (applied via filter dialog)
-  int?   _clientId;
+  int? _clientId;
   String _startDate = '';
-  String _endDate   = '';
+  String _endDate = '';
 
   // ── lifecycle ─────────────────────────────────────────────────────────────
 
@@ -48,6 +61,14 @@ class _DeliveryManagementScreenState
   void initState() {
     super.initState();
     _ctrl.initialize();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _loadClients());
+  }
+
+  Future<void> _loadClients() async {
+    // fetchClients() is paginated (20/page by default) — bump the page
+    // size so this one call returns every client for the picker.
+    clientCtrl.itemsPerPage.value = 1000;
+    await clientCtrl.fetchClients(showLoading: true);
   }
 
   @override
@@ -60,21 +81,21 @@ class _DeliveryManagementScreenState
 
   void _applyFilter() {
     _ctrl.getAllDeliveries(
-      search:    _searchQuery.isNotEmpty ? _searchQuery : null,
-      clientId:  _clientId,
+      search: _searchQuery.isNotEmpty ? _searchQuery : null,
+      clientId: _clientId,
       startDate: _startDate.isNotEmpty ? _startDate : null,
-      endDate:   _endDate.isNotEmpty   ? _endDate   : null,
+      endDate: _endDate.isNotEmpty ? _endDate : null,
     );
   }
 
   // ── filter dialog ─────────────────────────────────────────────────────────
 
   void _showFilterDialog() {
-    int?   tmpClient = _clientId;
-    String tmpStart  = _startDate;
-    String tmpEnd    = _endDate;
-    final  startCtrl = TextEditingController(text: tmpStart);
-    final  endCtrl   = TextEditingController(text: tmpEnd);
+    int? tmpClient = _clientId;
+    String tmpStart = _startDate;
+    String tmpEnd = _endDate;
+    final startCtrl = TextEditingController(text: tmpStart);
+    final endCtrl = TextEditingController(text: tmpEnd);
 
     showDialog(
       context: context,
@@ -105,12 +126,11 @@ class _DeliveryManagementScreenState
                       topLeft: Radius.circular(20),
                       topRight: Radius.circular(20),
                     ),
-                    border: Border(
-                        bottom: BorderSide(color: Colors.grey.shade200)),
+                    border:
+                        Border(bottom: BorderSide(color: Colors.grey.shade200)),
                   ),
                   child: Row(children: [
-                    const Icon(Icons.tune,
-                        color: Color(0xFF2C3E50), size: 20),
+                    const Icon(Icons.tune, color: Color(0xFF2C3E50), size: 20),
                     const SizedBox(width: 10),
                     const Expanded(
                       child: Text('Filter Deliveries',
@@ -125,16 +145,15 @@ class _DeliveryManagementScreenState
                       TextButton(
                         onPressed: () {
                           setState(() {
-                            _clientId  = null;
+                            _clientId = null;
                             _startDate = '';
-                            _endDate   = '';
+                            _endDate = '';
                           });
                           _applyFilter();
                           Navigator.pop(ctx);
                         },
                         child: const Text('Clear',
-                            style: TextStyle(
-                                color: Colors.red, fontSize: 13)),
+                            style: TextStyle(color: Colors.red, fontSize: 13)),
                       ),
                     IconButton(
                       icon: const Icon(Icons.close,
@@ -149,35 +168,13 @@ class _DeliveryManagementScreenState
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text('Client',
-                          style: TextStyle(
-                              fontSize: 13,
-                              fontWeight: FontWeight.w600,
-                              color: Colors.grey.shade700)),
-                      const SizedBox(height: 8),
-                      Obx(() => DropdownButtonFormField<int?>(
-                            value: tmpClient,
-                            isExpanded: true,
-                            decoration: InputDecoration(
-                              border: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(10)),
-                              contentPadding:
-                                  const EdgeInsets.symmetric(
-                                      horizontal: 12, vertical: 10),
-                            ),
-                            items: [
-                              const DropdownMenuItem(
-                                  value: null,
-                                  child: Text('All Clients')),
-                              ..._ctrl.clients.map((c) => DropdownMenuItem(
-                                    value: c.clientId,
-                                    child: Text(
-                                        '${c.clientCode} – ${c.clientName}',
-                                        overflow: TextOverflow.ellipsis),
-                                  )),
-                            ],
-                            onChanged: (v) =>
-                                setDlg(() => tmpClient = v),
+                      Obx(() => ClientSearchField(
+                            clients: clientCtrl.clients,
+                            selectedClientId: tmpClient,
+                            isLoading: clientCtrl.isLoading.value,
+                            allOptionLabel: 'All Clients',
+                            label: 'Client',
+                            onChanged: (v) => setDlg(() => tmpClient = v),
                           )),
                       const SizedBox(height: 16),
                       Row(children: [
@@ -189,18 +186,16 @@ class _DeliveryManagementScreenState
                               labelText: 'Date From',
                               border: OutlineInputBorder(
                                   borderRadius: BorderRadius.circular(10)),
-                              contentPadding:
-                                  const EdgeInsets.symmetric(
-                                      horizontal: 12, vertical: 10),
+                              contentPadding: const EdgeInsets.symmetric(
+                                  horizontal: 12, vertical: 10),
                               suffixIcon: tmpStart.isNotEmpty
                                   ? IconButton(
                                       icon: const Icon(Icons.clear, size: 18),
                                       onPressed: () => setDlg(() {
-                                        tmpStart = '';
-                                        startCtrl.clear();
-                                      }))
-                                  : const Icon(Icons.calendar_today,
-                                      size: 18),
+                                            tmpStart = '';
+                                            startCtrl.clear();
+                                          }))
+                                  : const Icon(Icons.calendar_today, size: 18),
                             ),
                             onTap: () async {
                               final p = await showDatePicker(
@@ -210,8 +205,7 @@ class _DeliveryManagementScreenState
                                   lastDate: DateTime.now());
                               if (p != null) {
                                 setDlg(() {
-                                  tmpStart       =
-                                      DateFormat('yyyy-MM-dd').format(p);
+                                  tmpStart = DateFormat('yyyy-MM-dd').format(p);
                                   startCtrl.text = tmpStart;
                                 });
                               }
@@ -227,18 +221,16 @@ class _DeliveryManagementScreenState
                               labelText: 'Date To',
                               border: OutlineInputBorder(
                                   borderRadius: BorderRadius.circular(10)),
-                              contentPadding:
-                                  const EdgeInsets.symmetric(
-                                      horizontal: 12, vertical: 10),
+                              contentPadding: const EdgeInsets.symmetric(
+                                  horizontal: 12, vertical: 10),
                               suffixIcon: tmpEnd.isNotEmpty
                                   ? IconButton(
                                       icon: const Icon(Icons.clear, size: 18),
                                       onPressed: () => setDlg(() {
-                                        tmpEnd = '';
-                                        endCtrl.clear();
-                                      }))
-                                  : const Icon(Icons.calendar_today,
-                                      size: 18),
+                                            tmpEnd = '';
+                                            endCtrl.clear();
+                                          }))
+                                  : const Icon(Icons.calendar_today, size: 18),
                             ),
                             onTap: () async {
                               final p = await showDatePicker(
@@ -248,8 +240,7 @@ class _DeliveryManagementScreenState
                                   lastDate: DateTime.now());
                               if (p != null) {
                                 setDlg(() {
-                                  tmpEnd       =
-                                      DateFormat('yyyy-MM-dd').format(p);
+                                  tmpEnd = DateFormat('yyyy-MM-dd').format(p);
                                   endCtrl.text = tmpEnd;
                                 });
                               }
@@ -264,17 +255,16 @@ class _DeliveryManagementScreenState
                           style: ElevatedButton.styleFrom(
                             backgroundColor: const Color(0xFF3498DB),
                             foregroundColor: Colors.white,
-                            padding:
-                                const EdgeInsets.symmetric(vertical: 14),
+                            padding: const EdgeInsets.symmetric(vertical: 14),
                             shape: RoundedRectangleBorder(
                                 borderRadius: BorderRadius.circular(12)),
                           ),
                           onPressed: () {
                             Navigator.pop(ctx);
                             setState(() {
-                              _clientId  = tmpClient;
+                              _clientId = tmpClient;
                               _startDate = tmpStart;
-                              _endDate   = tmpEnd;
+                              _endDate = tmpEnd;
                               _selectedFilter = 'all';
                             });
                             _applyFilter();
@@ -315,21 +305,21 @@ class _DeliveryManagementScreenState
     showDialog(
       context: context,
       builder: (_) => _DeliveryDetailsDialog(
-        delivery:   d,
+        delivery: d,
         controller: _ctrl,
-        onEdit:     _auth.hasPermission('canCreateDeliveries')
+        onEdit: _auth.hasPermission('canCreateDeliveries')
             ? () {
                 Navigator.pop(context);
                 _showEditDeliveryDialog(d);
               }
             : null,
-        onDelete:   _auth.hasPermission('canDeleteDeliveries')
+        onDelete: _auth.hasPermission('canDeleteDeliveries')
             ? () {
                 Navigator.pop(context);
                 _showDeleteDialog(d);
               }
             : null,
-        onSign:     !d.hasSignature
+        onSign: !d.hasSignature
             ? () {
                 Navigator.pop(context);
                 _showSignatureDialog(d);
@@ -348,7 +338,7 @@ class _DeliveryManagementScreenState
         textAlign: TextAlign.center,
       ),
       textConfirm: 'Delete',
-      textCancel:  'Cancel',
+      textCancel: 'Cancel',
       confirmTextColor: Colors.white,
       buttonColor: Colors.red,
       onConfirm: () async {
@@ -389,9 +379,7 @@ class _DeliveryManagementScreenState
             borderRadius: BorderRadius.circular(16),
             boxShadow: const [
               BoxShadow(
-                  color: Colors.black26,
-                  blurRadius: 10,
-                  offset: Offset(0, 4)),
+                  color: Colors.black26, blurRadius: 10, offset: Offset(0, 4)),
             ],
           ),
           child: Column(
@@ -406,8 +394,8 @@ class _DeliveryManagementScreenState
                     topLeft: Radius.circular(16),
                     topRight: Radius.circular(16),
                   ),
-                  border: Border(
-                      bottom: BorderSide(color: Colors.grey.shade300)),
+                  border:
+                      Border(bottom: BorderSide(color: Colors.grey.shade300)),
                 ),
                 child: Row(children: [
                   Container(
@@ -417,8 +405,7 @@ class _DeliveryManagementScreenState
                       borderRadius: BorderRadius.circular(12),
                       border: Border.all(color: Colors.blue.shade300),
                     ),
-                    child: const Icon(Icons.draw,
-                        color: Colors.blue, size: 24),
+                    child: const Icon(Icons.draw, color: Colors.blue, size: 24),
                   ),
                   const SizedBox(width: 16),
                   Expanded(
@@ -442,8 +429,7 @@ class _DeliveryManagementScreenState
                         Text(
                           'Receiver should sign to confirm delivery.',
                           style: TextStyle(
-                              fontSize: 12,
-                              color: Colors.grey.shade600),
+                              fontSize: 12, color: Colors.grey.shade600),
                         ),
                       ],
                     ),
@@ -484,8 +470,7 @@ class _DeliveryManagementScreenState
                       decoration: BoxDecoration(
                         color: Colors.grey.shade50,
                         borderRadius: BorderRadius.circular(12),
-                        border:
-                            Border.all(color: Colors.grey.shade300),
+                        border: Border.all(color: Colors.grey.shade300),
                       ),
                       child: ClipRRect(
                         borderRadius: BorderRadius.circular(12),
@@ -508,8 +493,7 @@ class _DeliveryManagementScreenState
                     bottomLeft: Radius.circular(16),
                     bottomRight: Radius.circular(16),
                   ),
-                  border: Border(
-                      top: BorderSide(color: Colors.grey.shade300)),
+                  border: Border(top: BorderSide(color: Colors.grey.shade300)),
                 ),
                 child: Row(children: [
                   Expanded(
@@ -518,8 +502,7 @@ class _DeliveryManagementScreenState
                       style: OutlinedButton.styleFrom(
                         side: BorderSide(color: Colors.grey.shade400),
                         foregroundColor: Colors.black87,
-                        padding:
-                            const EdgeInsets.symmetric(vertical: 14),
+                        padding: const EdgeInsets.symmetric(vertical: 14),
                         shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(12)),
                       ),
@@ -549,23 +532,44 @@ class _DeliveryManagementScreenState
 
                         if (success && ctx.mounted) {
                           Navigator.pop(ctx);
-                          _ctrl.initialize();
+                          // Optimistically update the local list so the row
+                          // reflects the new signature immediately while the
+                          // background refresh completes.
+                          final idx = _ctrl.deliveries.indexWhere(
+                              (d) => d.deliveryId == delivery.deliveryId);
+                          if (idx != -1) {
+                            _ctrl.deliveries[idx] = DeliveryModel(
+                              deliveryId: delivery.deliveryId,
+                              client: delivery.client,
+                              itemName: delivery.itemName,
+                              quantity: delivery.quantity,
+                              deliveryDate: delivery.deliveryDate,
+                              receiverName: delivery.receiverName,
+                              receiverSignature: b64,   // ← immediately set
+                              acknowledgementStatement:
+                                  delivery.acknowledgementStatement,
+                              pdfPath: delivery.pdfPath,
+                              createdBy: delivery.createdBy,
+                              createdAt: delivery.createdAt,
+                            );
+                          }
+                          // Also refresh in background so server state is in sync
+                          await _ctrl.refreshCurrentPage();
                           Get.snackbar(
                             'Signature Saved',
                             'Receiver signature captured for '
-                            '${delivery.receiverName}.',
+                                '${delivery.receiverName}.',
                             backgroundColor: Colors.green,
                             colorText: Colors.white,
-                            icon: const Icon(Icons.verified,
-                                color: Colors.white),
+                            icon:
+                                const Icon(Icons.verified, color: Colors.white),
                           );
                         }
                       },
                       style: ElevatedButton.styleFrom(
                         backgroundColor: Colors.blue,
                         foregroundColor: Colors.white,
-                        padding:
-                            const EdgeInsets.symmetric(vertical: 14),
+                        padding: const EdgeInsets.symmetric(vertical: 14),
                         shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(12)),
                       ),
@@ -585,11 +589,11 @@ class _DeliveryManagementScreenState
   // ── report ────────────────────────────────────────────────────────────────
 
   void _showReportDialog() {
-    int?   rptClient;
-    String rptStart  = '';
-    String rptEnd    = '';
-    final  startCtrl = TextEditingController();
-    final  endCtrl   = TextEditingController();
+    int? rptClient;
+    String rptStart = '';
+    String rptEnd = '';
+    final startCtrl = TextEditingController();
+    final endCtrl = TextEditingController();
 
     showDialog(
       context: context,
@@ -637,13 +641,11 @@ class _DeliveryManagementScreenState
                                     color: Colors.white)),
                             Text('Docsecure PSMS',
                                 style: TextStyle(
-                                    fontSize: 13,
-                                    color: Colors.white70)),
+                                    fontSize: 13, color: Colors.white70)),
                           ]),
                     ),
                     IconButton(
-                        icon: const Icon(Icons.close,
-                            color: Colors.white70),
+                        icon: const Icon(Icons.close, color: Colors.white70),
                         onPressed: () => Navigator.pop(ctx)),
                   ]),
                 ),
@@ -653,33 +655,12 @@ class _DeliveryManagementScreenState
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text('Client (optional)',
-                          style: TextStyle(
-                              fontSize: 13,
-                              fontWeight: FontWeight.w600,
-                              color: Colors.grey.shade700)),
-                      const SizedBox(height: 8),
-                      Obx(() => DropdownButtonFormField<int?>(
-                            value: rptClient,
-                            isExpanded: true,
-                            decoration: InputDecoration(
-                              border: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(10)),
-                              contentPadding:
-                                  const EdgeInsets.symmetric(
-                                      horizontal: 12, vertical: 10),
-                            ),
-                            items: [
-                              const DropdownMenuItem(
-                                  value: null,
-                                  child: Text('All Clients')),
-                              ..._ctrl.clients.map((c) => DropdownMenuItem(
-                                    value: c.clientId,
-                                    child: Text(
-                                        '${c.clientCode} – ${c.clientName}',
-                                        overflow: TextOverflow.ellipsis),
-                                  )),
-                            ],
+                      Obx(() => ClientSearchField(
+                            clients: clientCtrl.clients,
+                            selectedClientId: rptClient,
+                            isLoading: clientCtrl.isLoading.value,
+                            allOptionLabel: 'All Clients',
+                            label: 'Client (optional)',
                             onChanged: (v) => setDlg(() => rptClient = v),
                           )),
                       const SizedBox(height: 16),
@@ -692,11 +673,10 @@ class _DeliveryManagementScreenState
                               labelText: 'Date From',
                               border: OutlineInputBorder(
                                   borderRadius: BorderRadius.circular(10)),
-                              contentPadding:
-                                  const EdgeInsets.symmetric(
-                                      horizontal: 12, vertical: 10),
-                              suffixIcon: const Icon(
-                                  Icons.calendar_today, size: 18),
+                              contentPadding: const EdgeInsets.symmetric(
+                                  horizontal: 12, vertical: 10),
+                              suffixIcon:
+                                  const Icon(Icons.calendar_today, size: 18),
                             ),
                             onTap: () async {
                               final p = await showDatePicker(
@@ -706,8 +686,7 @@ class _DeliveryManagementScreenState
                                   lastDate: DateTime.now());
                               if (p != null) {
                                 setDlg(() {
-                                  rptStart       =
-                                      DateFormat('yyyy-MM-dd').format(p);
+                                  rptStart = DateFormat('yyyy-MM-dd').format(p);
                                   startCtrl.text = rptStart;
                                 });
                               }
@@ -723,11 +702,10 @@ class _DeliveryManagementScreenState
                               labelText: 'Date To',
                               border: OutlineInputBorder(
                                   borderRadius: BorderRadius.circular(10)),
-                              contentPadding:
-                                  const EdgeInsets.symmetric(
-                                      horizontal: 12, vertical: 10),
-                              suffixIcon: const Icon(
-                                  Icons.calendar_today, size: 18),
+                              contentPadding: const EdgeInsets.symmetric(
+                                  horizontal: 12, vertical: 10),
+                              suffixIcon:
+                                  const Icon(Icons.calendar_today, size: 18),
                             ),
                             onTap: () async {
                               final p = await showDatePicker(
@@ -737,8 +715,7 @@ class _DeliveryManagementScreenState
                                   lastDate: DateTime.now());
                               if (p != null) {
                                 setDlg(() {
-                                  rptEnd       =
-                                      DateFormat('yyyy-MM-dd').format(p);
+                                  rptEnd = DateFormat('yyyy-MM-dd').format(p);
                                   endCtrl.text = rptEnd;
                                 });
                               }
@@ -758,8 +735,8 @@ class _DeliveryManagementScreenState
                       bottomLeft: Radius.circular(16),
                       bottomRight: Radius.circular(16),
                     ),
-                    border: Border(
-                        top: BorderSide(color: Colors.grey.shade300)),
+                    border:
+                        Border(top: BorderSide(color: Colors.grey.shade300)),
                   ),
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.end,
@@ -783,9 +760,9 @@ class _DeliveryManagementScreenState
                         onPressed: () async {
                           Navigator.pop(ctx);
                           final pdf = await _buildPdfDocument(
-                            clientId:  rptClient,
+                            clientId: rptClient,
                             startDate: rptStart.isNotEmpty ? rptStart : null,
-                            endDate:   rptEnd.isNotEmpty   ? rptEnd   : null,
+                            endDate: rptEnd.isNotEmpty ? rptEnd : null,
                           );
                           _showPdfPreview(pdf);
                         },
@@ -801,9 +778,9 @@ class _DeliveryManagementScreenState
                         onPressed: () async {
                           Navigator.pop(ctx);
                           final pdf = await _buildPdfDocument(
-                            clientId:  rptClient,
+                            clientId: rptClient,
                             startDate: rptStart.isNotEmpty ? rptStart : null,
-                            endDate:   rptEnd.isNotEmpty   ? rptEnd   : null,
+                            endDate: rptEnd.isNotEmpty ? rptEnd : null,
                           );
                           await _sharePdf(pdf);
                         },
@@ -825,8 +802,7 @@ class _DeliveryManagementScreenState
       barrierDismissible: false,
       builder: (ctx) => Dialog(
         backgroundColor: Colors.transparent,
-        insetPadding:
-            const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
+        insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
         child: ConstrainedBox(
           constraints: BoxConstraints(
             maxHeight: MediaQuery.of(ctx).size.height * 0.92,
@@ -839,15 +815,14 @@ class _DeliveryManagementScreenState
             ),
             child: Column(children: [
               Container(
-                padding: const EdgeInsets.symmetric(
-                    horizontal: 16, vertical: 10),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
                 decoration: BoxDecoration(
                   color: Colors.grey.shade50,
-                  borderRadius: const BorderRadius.vertical(
-                      top: Radius.circular(12)),
-                  border: Border(
-                      bottom:
-                          BorderSide(color: Colors.grey.shade300)),
+                  borderRadius:
+                      const BorderRadius.vertical(top: Radius.circular(12)),
+                  border:
+                      Border(bottom: BorderSide(color: Colors.grey.shade300)),
                 ),
                 child: Row(children: [
                   const Text('Delivery Report Preview',
@@ -871,10 +846,9 @@ class _DeliveryManagementScreenState
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
                   color: Colors.grey.shade50,
-                  borderRadius: const BorderRadius.vertical(
-                      bottom: Radius.circular(12)),
-                  border: Border(
-                      top: BorderSide(color: Colors.grey.shade300)),
+                  borderRadius:
+                      const BorderRadius.vertical(bottom: Radius.circular(12)),
+                  border: Border(top: BorderSide(color: Colors.grey.shade300)),
                 ),
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.end,
@@ -910,8 +884,7 @@ class _DeliveryManagementScreenState
                       label: const Text('Print'),
                       onPressed: () {
                         Navigator.pop(ctx);
-                        Printing.layoutPdf(
-                            onLayout: (_) async => pdf.save());
+                        Printing.layoutPdf(onLayout: (_) async => pdf.save());
                       },
                     ),
                   ],
@@ -951,8 +924,7 @@ class _DeliveryManagementScreenState
         ),
         actions: [
           IconButton(
-            icon: const Icon(Icons.filter_list,
-                color: Color(0xFF2C3E50)),
+            icon: const Icon(Icons.filter_list, color: Color(0xFF2C3E50)),
             onPressed: _showFilterDialog,
             tooltip: 'Filter',
           ),
@@ -1039,8 +1011,7 @@ class _DeliveryManagementScreenState
               decoration: BoxDecoration(
                 color: Colors.white.withOpacity(0.95),
                 borderRadius: BorderRadius.circular(16),
-                border: Border.all(
-                    color: Colors.black.withOpacity(0.2)),
+                border: Border.all(color: Colors.black.withOpacity(0.2)),
               ),
               child: Column(
                 children: [
@@ -1054,16 +1025,13 @@ class _DeliveryManagementScreenState
                             color: Colors.black.withOpacity(0.1),
                             borderRadius: BorderRadius.circular(8),
                             border: Border.all(
-                                color:
-                                    Colors.black.withOpacity(0.3)),
+                                color: Colors.black.withOpacity(0.3)),
                           ),
                           child: TextField(
                             controller: _searchController,
-                            style:
-                                const TextStyle(color: Colors.black),
+                            style: const TextStyle(color: Colors.black),
                             decoration: InputDecoration(
-                              hintText:
-                                  'Search by client, item, receiver…',
+                              hintText: 'Search by client, item, receiver…',
                               hintStyle: TextStyle(
                                   color: Colors.black.withOpacity(0.5)),
                               prefixIcon: Icon(Icons.search,
@@ -1073,8 +1041,7 @@ class _DeliveryManagementScreenState
                                   ? IconButton(
                                       icon: Icon(Icons.clear,
                                           size: 20,
-                                          color: Colors.black
-                                              .withOpacity(0.7)),
+                                          color: Colors.black.withOpacity(0.7)),
                                       onPressed: () {
                                         setState(() {
                                           _searchController.clear();
@@ -1085,9 +1052,8 @@ class _DeliveryManagementScreenState
                                     )
                                   : null,
                               border: InputBorder.none,
-                              contentPadding:
-                                  const EdgeInsets.symmetric(
-                                      horizontal: 16, vertical: 12),
+                              contentPadding: const EdgeInsets.symmetric(
+                                  horizontal: 16, vertical: 12),
                             ),
                             onChanged: (v) {
                               setState(() => _searchQuery = v);
@@ -1097,17 +1063,15 @@ class _DeliveryManagementScreenState
                         ),
                       ),
                       const SizedBox(width: 16),
-                      _buildFilterChip('All',       'all'),
+                      _buildFilterChip('All', 'all'),
                       const SizedBox(width: 8),
                       _buildFilterChip('By Client', 'by_client'),
                       const SizedBox(width: 8),
-                      _buildFilterChip('Recent',    'recent'),
+                      _buildFilterChip('Recent', 'recent'),
                     ]),
                   ),
 
-                  Divider(
-                      height: 1,
-                      color: Colors.black.withOpacity(0.2)),
+                  Divider(height: 1, color: Colors.black.withOpacity(0.2)),
 
                   // Table header — only for 'all' view
                   if (_selectedFilter == 'all') ...[
@@ -1116,40 +1080,23 @@ class _DeliveryManagementScreenState
                           horizontal: 24, vertical: 14),
                       color: Colors.black.withOpacity(0.05),
                       child: Row(children: [
-                        Expanded(
-                            flex: 3,
-                            child: _headerCell('Client')),
-                        Expanded(
-                            flex: 2,
-                            child: _headerCell('Item')),
-                        Expanded(
-                            flex: 2,
-                            child: _headerCell('Date')),
-                        Expanded(
-                            flex: 2,
-                            child: _headerCell('Receiver')),
-                        SizedBox(
-                            width: 110,
-                            child: _headerCell('Docs')),
-                        SizedBox(
-                            width: 100,
-                            child: _headerCell('Actions',
-                                align: TextAlign.end)),
+                        Expanded(flex: 3, child: _headerCell('Client')),
+                        Expanded(flex: 2, child: _headerCell('Item')),
+                        Expanded(flex: 2, child: _headerCell('Date')),
+                        Expanded(flex: 2, child: _headerCell('Receiver')),
+                        Expanded(flex: 2, child: _headerCell('Docs')),
+                        Expanded(flex: 2, child: _headerCell('Actions')),
                       ]),
                     ),
-                    Divider(
-                        height: 1,
-                        color: Colors.black.withOpacity(0.2)),
+                    Divider(height: 1, color: Colors.black.withOpacity(0.2)),
                   ],
 
                   // List area
                   Expanded(
                     child: Obx(() {
-                      if (_ctrl.isLoading.value &&
-                          _ctrl.deliveries.isEmpty) {
+                      if (_ctrl.isLoading.value && _ctrl.deliveries.isEmpty) {
                         return const Center(
-                          child: CircularProgressIndicator(
-                              color: Colors.black),
+                          child: CircularProgressIndicator(color: Colors.black),
                         );
                       }
 
@@ -1175,10 +1122,11 @@ class _DeliveryManagementScreenState
               onPressed: _showCreateDeliveryDialog,
               icon: const Icon(Icons.add),
               label: const Text('New Delivery'),
-              backgroundColor:
-                  const Color(0xFF1976D2).withOpacity(0.8),
+              backgroundColor: const Color(0xFF1976D2).withOpacity(0.8),
             )
           : null,
+      // Pagination + counter always visible, never hidden by FAB
+      bottomNavigationBar: _buildPaginationBar(),
     );
   }
 
@@ -1203,9 +1151,8 @@ class _DeliveryManagementScreenState
               _searchQuery.isNotEmpty || _clientId != null
                   ? 'Try adjusting your filters'
                   : 'Create a new delivery to get started',
-              style: TextStyle(
-                  color: Colors.black.withOpacity(0.6),
-                  fontSize: 14),
+              style:
+                  TextStyle(color: Colors.black.withOpacity(0.6), fontSize: 14),
             ),
           ],
         ),
@@ -1219,14 +1166,12 @@ class _DeliveryManagementScreenState
           child: ListView.separated(
             padding: EdgeInsets.zero,
             itemCount: _ctrl.deliveries.length,
-            separatorBuilder: (_, __) => Divider(
-                height: 1, color: Colors.black.withOpacity(0.1)),
-            itemBuilder: (_, i) =>
-                _buildDeliveryRow(_ctrl.deliveries[i]),
+            separatorBuilder: (_, __) =>
+                Divider(height: 1, color: Colors.black.withOpacity(0.1)),
+            itemBuilder: (_, i) => _buildDeliveryRow(_ctrl.deliveries[i]),
           ),
         ),
-        // Pagination bar — always visible
-        _buildPaginationBar(),
+        // Pagination is rendered in Scaffold.bottomNavigationBar
       ]),
     );
   }
@@ -1235,8 +1180,7 @@ class _DeliveryManagementScreenState
     return InkWell(
       onTap: () => _showDeliveryDetails(d),
       child: Container(
-        padding: const EdgeInsets.symmetric(
-            horizontal: 24, vertical: 14),
+        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
         child: Row(children: [
           // ── Client ────────────────────────────────────────────────────
           Expanded(
@@ -1247,12 +1191,10 @@ class _DeliveryManagementScreenState
                 decoration: BoxDecoration(
                   color: Colors.white.withOpacity(0.1),
                   borderRadius: BorderRadius.circular(8),
-                  border: Border.all(
-                      color: Colors.black.withOpacity(0.2)),
+                  border: Border.all(color: Colors.black.withOpacity(0.2)),
                 ),
                 child: Icon(Icons.business,
-                    size: 18,
-                    color: Colors.black.withOpacity(0.7)),
+                    size: 18, color: Colors.black.withOpacity(0.7)),
               ),
               const SizedBox(width: 10),
               Expanded(
@@ -1268,8 +1210,7 @@ class _DeliveryManagementScreenState
                         overflow: TextOverflow.ellipsis),
                     Text(d.client.clientCode,
                         style: TextStyle(
-                            color: Colors.black.withOpacity(0.5),
-                            fontSize: 11),
+                            color: Colors.black.withOpacity(0.5), fontSize: 11),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis),
                   ],
@@ -1293,14 +1234,13 @@ class _DeliveryManagementScreenState
                     overflow: TextOverflow.ellipsis),
                 Container(
                   margin: const EdgeInsets.only(top: 4),
-                  padding: const EdgeInsets.symmetric(
-                      horizontal: 8, vertical: 2),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                   decoration: BoxDecoration(
                     color: const Color(0xFF52BE80).withOpacity(0.15),
                     borderRadius: BorderRadius.circular(10),
                     border: Border.all(
-                        color: const Color(0xFF52BE80)
-                            .withOpacity(0.35)),
+                        color: const Color(0xFF52BE80).withOpacity(0.35)),
                   ),
                   child: Text(
                     '${d.quantity} item${d.quantity == 1 ? '' : 's'}',
@@ -1319,8 +1259,7 @@ class _DeliveryManagementScreenState
             flex: 2,
             child: Text(
               DateFormat('MMM dd, yyyy').format(d.deliveryDate),
-              style: const TextStyle(
-                  fontSize: 13, color: Colors.black),
+              style: const TextStyle(fontSize: 13, color: Colors.black),
             ),
           ),
 
@@ -1329,15 +1268,14 @@ class _DeliveryManagementScreenState
             flex: 2,
             child: Text(d.receiverName,
                 style: TextStyle(
-                    fontSize: 12,
-                    color: Colors.black.withOpacity(0.65)),
+                    fontSize: 12, color: Colors.black.withOpacity(0.65)),
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis),
           ),
 
           // ── Docs (mirrors Signatures column) ──────────────────────────
-          SizedBox(
-            width: 110,
+          Expanded(
+            flex: 2,
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -1349,15 +1287,14 @@ class _DeliveryManagementScreenState
           ),
 
           // ── Actions ───────────────────────────────────────────────────
-          SizedBox(
-            width: 100,
+          Expanded(
+            flex: 2,
             child: Row(
               mainAxisAlignment: MainAxisAlignment.end,
               children: [
                 IconButton(
                   icon: Icon(Icons.visibility_outlined,
-                      size: 18,
-                      color: Colors.black.withOpacity(0.7)),
+                      size: 18, color: Colors.black.withOpacity(0.7)),
                   onPressed: () => _showDeliveryDetails(d),
                   tooltip: 'View',
                 ),
@@ -1365,8 +1302,7 @@ class _DeliveryManagementScreenState
                 if (!d.hasSignature)
                   IconButton(
                     icon: Icon(Icons.draw,
-                        size: 18,
-                        color: Colors.black.withOpacity(0.7)),
+                        size: 18, color: Colors.black.withOpacity(0.7)),
                     onPressed: () => _showSignatureDialog(d),
                     tooltip: 'Capture receiver signature',
                   ),
@@ -1424,14 +1360,13 @@ class _DeliveryManagementScreenState
           return InkWell(
             onTap: () {
               setState(() {
-                _clientId       = r.clientId;
+                _clientId = r.clientId;
                 _selectedFilter = 'all';
               });
               _applyFilter();
             },
             child: Padding(
-              padding: const EdgeInsets.symmetric(
-                  horizontal: 24, vertical: 14),
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
               child: Row(children: [
                 // Avatar
                 Container(
@@ -1439,8 +1374,7 @@ class _DeliveryManagementScreenState
                   decoration: BoxDecoration(
                     color: Colors.white.withOpacity(0.1),
                     borderRadius: BorderRadius.circular(8),
-                    border: Border.all(
-                        color: Colors.black.withOpacity(0.2)),
+                    border: Border.all(color: Colors.black.withOpacity(0.2)),
                   ),
                   child: Text(
                     r.clientCode.isNotEmpty
@@ -1487,12 +1421,10 @@ class _DeliveryManagementScreenState
                       padding: const EdgeInsets.symmetric(
                           horizontal: 8, vertical: 2),
                       decoration: BoxDecoration(
-                        color:
-                            const Color(0xFF52BE80).withOpacity(0.15),
+                        color: const Color(0xFF52BE80).withOpacity(0.15),
                         borderRadius: BorderRadius.circular(10),
                         border: Border.all(
-                            color: const Color(0xFF52BE80)
-                                .withOpacity(0.35)),
+                            color: const Color(0xFF52BE80).withOpacity(0.35)),
                       ),
                       child: Text(
                         '${r.totalItemsDelivered} items',
@@ -1545,8 +1477,7 @@ class _DeliveryManagementScreenState
         itemBuilder: (_, i) {
           final d = _ctrl.recentDeliveries[i];
           return Padding(
-            padding: const EdgeInsets.symmetric(
-                horizontal: 24, vertical: 14),
+            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
             child: Row(children: [
               Container(
                 padding: const EdgeInsets.all(9),
@@ -1575,15 +1506,13 @@ class _DeliveryManagementScreenState
                       '${d.clientCode} · ${d.clientName}  ·  '
                       '${DateFormat('MMM dd, yyyy').format(d.deliveryDate)}',
                       style: TextStyle(
-                          color: Colors.black.withOpacity(0.5),
-                          fontSize: 11),
+                          color: Colors.black.withOpacity(0.5), fontSize: 11),
                     ),
                   ],
                 ),
               ),
               Container(
-                padding: const EdgeInsets.symmetric(
-                    horizontal: 8, vertical: 2),
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                 decoration: BoxDecoration(
                   color: const Color(0xFF52BE80).withOpacity(0.15),
                   borderRadius: BorderRadius.circular(10),
@@ -1608,21 +1537,19 @@ class _DeliveryManagementScreenState
   Widget _buildPaginationBar() {
     return Obx(() {
       final current = _ctrl.currentPage.value;
-      final total   = _ctrl.totalPages.value;
-      final count   = _ctrl.totalDeliveries.value;
+      final total = _ctrl.totalPages.value;
+      final count = _ctrl.totalDeliveries.value;
 
       return Container(
-        padding: const EdgeInsets.symmetric(
-            horizontal: 20, vertical: 10),
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
         decoration: BoxDecoration(
           color: Colors.grey.shade50,
-          border: Border(
-              top: BorderSide(
-                  color: Colors.black.withOpacity(0.08))),
+          border:
+              Border(top: BorderSide(color: Colors.black.withOpacity(0.08))),
         ),
         child: Row(children: [
           Text(
-            '$count delivery${count == 1 ? '' : 's'}',
+            '$count ${count == 1 ? 'delivery' : 'deliveries'}',
             style: TextStyle(
                 fontSize: 12,
                 color: Colors.black.withOpacity(0.5),
@@ -1635,24 +1562,20 @@ class _DeliveryManagementScreenState
             onTap: _ctrl.loadPreviousPage,
           ),
           ...List.generate(total, (i) {
-            final page       = i + 1;
-            final isCurrent  = page == current;
-            final visible    = page == 1 ||
+            final page = i + 1;
+            final isCurrent = page == current;
+            final visible = page == 1 ||
                 page == total ||
                 (page >= current - 1 && page <= current + 1);
-            final isGapBefore =
-                page == current - 2 && page > 2;
-            final isGapAfter  =
-                page == current + 2 && page < total - 1;
+            final isGapBefore = page == current - 2 && page > 2;
+            final isGapAfter = page == current + 2 && page < total - 1;
 
             if (isGapBefore || isGapAfter) {
               return Padding(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 2),
+                padding: const EdgeInsets.symmetric(horizontal: 2),
                 child: Text('…',
                     style: TextStyle(
-                        color: Colors.black.withOpacity(0.35),
-                        fontSize: 13)),
+                        color: Colors.black.withOpacity(0.35), fontSize: 13)),
               );
             }
             if (!visible) return const SizedBox.shrink();
@@ -1661,28 +1584,20 @@ class _DeliveryManagementScreenState
               onTap: isCurrent
                   ? null
                   : () => _ctrl.getAllDeliveries(
-                        page:      page,
-                        search:    _searchQuery.isNotEmpty
-                            ? _searchQuery
-                            : null,
-                        clientId:  _clientId,
-                        startDate: _startDate.isNotEmpty
-                            ? _startDate
-                            : null,
-                        endDate:   _endDate.isNotEmpty
-                            ? _endDate
-                            : null,
+                        page: page,
+                        search: _searchQuery.isNotEmpty ? _searchQuery : null,
+                        clientId: _clientId,
+                        startDate: _startDate.isNotEmpty ? _startDate : null,
+                        endDate: _endDate.isNotEmpty ? _endDate : null,
                       ),
               child: AnimatedContainer(
                 duration: const Duration(milliseconds: 150),
-                margin:
-                    const EdgeInsets.symmetric(horizontal: 3),
+                margin: const EdgeInsets.symmetric(horizontal: 3),
                 width: 30,
                 height: 30,
                 decoration: BoxDecoration(
-                  color: isCurrent
-                      ? const Color(0xFF3498DB)
-                      : Colors.transparent,
+                  color:
+                      isCurrent ? const Color(0xFF3498DB) : Colors.transparent,
                   borderRadius: BorderRadius.circular(8),
                   border: Border.all(
                     color: isCurrent
@@ -1695,9 +1610,7 @@ class _DeliveryManagementScreenState
                       style: TextStyle(
                           fontSize: 12,
                           fontWeight: FontWeight.w600,
-                          color: isCurrent
-                              ? Colors.white
-                              : Colors.black54)),
+                          color: isCurrent ? Colors.white : Colors.black54)),
                 ),
               ),
             );
@@ -1726,23 +1639,18 @@ class _DeliveryManagementScreenState
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(8),
           border: Border.all(
-              color: enabled
-                  ? Colors.grey.shade300
-                  : Colors.grey.shade200),
+              color: enabled ? Colors.grey.shade300 : Colors.grey.shade200),
         ),
         child: Icon(icon,
-            size: 18,
-            color: enabled
-                ? Colors.black54
-                : Colors.grey.shade300),
+            size: 18, color: enabled ? Colors.black54 : Colors.grey.shade300),
       ),
     );
   }
 
   // ── HELPER WIDGETS ────────────────────────────────────────────────────────
 
-  Widget _buildStatCard(String label, String value, String subtitle,
-      IconData icon, Color color) {
+  Widget _buildStatCard(
+      String label, String value, String subtitle, IconData icon, Color color) {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -1761,16 +1669,13 @@ class _DeliveryManagementScreenState
                 decoration: BoxDecoration(
                   color: color.withOpacity(0.2),
                   borderRadius: BorderRadius.circular(8),
-                  border:
-                      Border.all(color: color.withOpacity(0.3)),
+                  border: Border.all(color: color.withOpacity(0.3)),
                 ),
                 child: Icon(icon, color: color, size: 20),
               ),
               Text(label,
                   style: TextStyle(
-                      color: color,
-                      fontSize: 11,
-                      fontWeight: FontWeight.w600)),
+                      color: color, fontSize: 11, fontWeight: FontWeight.w600)),
             ],
           ),
           const SizedBox(height: 16),
@@ -1782,8 +1687,7 @@ class _DeliveryManagementScreenState
           const SizedBox(height: 4),
           Text(subtitle,
               style: TextStyle(
-                  color: Colors.black.withOpacity(0.7),
-                  fontSize: 12)),
+                  color: Colors.black.withOpacity(0.7), fontSize: 12)),
         ],
       ),
     );
@@ -1807,12 +1711,10 @@ class _DeliveryManagementScreenState
         }
       },
       child: Container(
-        padding: const EdgeInsets.symmetric(
-            horizontal: 16, vertical: 8),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
         decoration: BoxDecoration(
-          color: isSelected
-              ? Colors.black.withOpacity(0.2)
-              : Colors.transparent,
+          color:
+              isSelected ? Colors.black.withOpacity(0.2) : Colors.transparent,
           borderRadius: BorderRadius.circular(8),
           border: Border.all(
             color: isSelected
@@ -1823,16 +1725,13 @@ class _DeliveryManagementScreenState
         child: Text(label,
             style: TextStyle(
                 color: Colors.black,
-                fontWeight: isSelected
-                    ? FontWeight.w600
-                    : FontWeight.normal,
+                fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
                 fontSize: 13)),
       ),
     );
   }
 
-  Widget _headerCell(String label,
-      {TextAlign align = TextAlign.left}) =>
+  Widget _headerCell(String label, {TextAlign align = TextAlign.left}) =>
       Text(label,
           textAlign: align,
           style: TextStyle(
@@ -1850,16 +1749,12 @@ class _DeliveryManagementScreenState
             : Colors.grey.withOpacity(0.1),
         borderRadius: BorderRadius.circular(20),
         border: Border.all(
-          color: active
-              ? Colors.green.withOpacity(0.4)
-              : Colors.grey.shade300,
+          color: active ? Colors.green.withOpacity(0.4) : Colors.grey.shade300,
         ),
       ),
       child: Row(mainAxisSize: MainAxisSize.min, children: [
         Icon(
-          active
-              ? Icons.check_circle
-              : Icons.radio_button_unchecked,
+          active ? Icons.check_circle : Icons.radio_button_unchecked,
           size: 12,
           color: active ? Colors.green : Colors.grey,
         ),
@@ -1876,21 +1771,20 @@ class _DeliveryManagementScreenState
   // ── PDF ───────────────────────────────────────────────────────────────────
 
   Future<pw.Document> _buildPdfDocument({
-    int? clientId, String? startDate, String? endDate,
+    int? clientId,
+    String? startDate,
+    String? endDate,
   }) async {
     final pdf = pw.Document();
 
-    final fontData =
-        await rootBundle.load('assets/fonts/OpenSans-Regular.ttf');
-    final boldData =
-        await rootBundle.load('assets/fonts/OpenSans-Bold.ttf');
-    final ttf     = pw.Font.ttf(fontData);
+    final fontData = await rootBundle.load('assets/fonts/OpenSans-Regular.ttf');
+    final boldData = await rootBundle.load('assets/fonts/OpenSans-Bold.ttf');
+    final ttf = pw.Font.ttf(fontData);
     final ttfBold = pw.Font.ttf(boldData);
-    final logo    = await _loadLogo();
+    final logo = await _loadLogo();
 
     final rows = _ctrl.deliveries
-        .where((d) =>
-            clientId == null || d.client.clientId == clientId)
+        .where((d) => clientId == null || d.client.clientId == clientId)
         .toList();
 
     final clientLabel = clientId != null && rows.isNotEmpty
@@ -1904,34 +1798,31 @@ class _DeliveryManagementScreenState
       header: (ctx) {
         if (ctx.pageNumber != 1) return pw.Container();
         return pw.Column(children: [
-          pw.Row(
-              crossAxisAlignment: pw.CrossAxisAlignment.start,
-              children: [
-                if (logo != null)
-                  pw.Container(
-                      width: 60, height: 60, child: pw.Image(logo)),
-                pw.SizedBox(width: 16),
-                pw.Expanded(
-                  child: pw.Column(
-                      crossAxisAlignment: pw.CrossAxisAlignment.start,
-                      children: [
-                        pw.Text('Docsecure Eswatini (Pty) Ltd',
-                            style: pw.TextStyle(
-                                fontSize: 14,
-                                fontWeight: pw.FontWeight.bold,
-                                color: PdfColors.blue800)),
-                        pw.Text('Physical Storage Management System®',
-                            style: pw.TextStyle(
-                                fontSize: 10, color: PdfColors.grey700)),
-                        pw.SizedBox(height: 4),
-                        pw.Text(
-                            'Below Gcina Trading, Plot 769 First street Mangozeni,\n'
-                            'Matsapha M201, Eswatini',
-                            style: pw.TextStyle(
-                                fontSize: 8, color: PdfColors.grey600)),
-                      ]),
-                ),
-              ]),
+          pw.Row(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
+            if (logo != null)
+              pw.Container(width: 60, height: 60, child: pw.Image(logo)),
+            pw.SizedBox(width: 16),
+            pw.Expanded(
+              child: pw.Column(
+                  crossAxisAlignment: pw.CrossAxisAlignment.start,
+                  children: [
+                    pw.Text('Docsecure Eswatini (Pty) Ltd',
+                        style: pw.TextStyle(
+                            fontSize: 14,
+                            fontWeight: pw.FontWeight.bold,
+                            color: PdfColors.blue800)),
+                    pw.Text('Physical Storage Management System®',
+                        style: pw.TextStyle(
+                            fontSize: 10, color: PdfColors.grey700)),
+                    pw.SizedBox(height: 4),
+                    pw.Text(
+                        'Below Gcina Trading, Plot 769 First street Mangozeni,\n'
+                        'Matsapha M201, Eswatini',
+                        style: pw.TextStyle(
+                            fontSize: 8, color: PdfColors.grey600)),
+                  ]),
+            ),
+          ]),
           pw.Divider(thickness: 1, color: PdfColors.grey400),
           pw.SizedBox(height: 12),
           pw.Row(
@@ -1942,33 +1833,28 @@ class _DeliveryManagementScreenState
                         fontSize: 18, fontWeight: pw.FontWeight.bold)),
                 pw.Text(
                     'Generated: ${DateFormat('yyyy-MM-dd HH:mm').format(DateTime.now())}',
-                    style: pw.TextStyle(
-                        fontSize: 9, color: PdfColors.grey700)),
+                    style: pw.TextStyle(fontSize: 9, color: PdfColors.grey700)),
               ]),
           pw.SizedBox(height: 8),
           pw.Container(
-            padding: const pw.EdgeInsets.symmetric(
-                vertical: 8, horizontal: 12),
+            padding: const pw.EdgeInsets.symmetric(vertical: 8, horizontal: 12),
             decoration: pw.BoxDecoration(
                 border: pw.Border.all(color: PdfColors.grey300)),
             child: pw.Row(children: [
               pw.Text('Client:  ',
                   style: pw.TextStyle(
                       fontWeight: pw.FontWeight.bold, fontSize: 10)),
-              pw.Text(clientLabel,
-                  style: pw.TextStyle(fontSize: 10)),
+              pw.Text(clientLabel, style: pw.TextStyle(fontSize: 10)),
               pw.SizedBox(width: 24),
               pw.Text('Date From:  ',
                   style: pw.TextStyle(
                       fontWeight: pw.FontWeight.bold, fontSize: 10)),
-              pw.Text(startDate ?? 'N/A',
-                  style: pw.TextStyle(fontSize: 10)),
+              pw.Text(startDate ?? 'N/A', style: pw.TextStyle(fontSize: 10)),
               pw.SizedBox(width: 24),
               pw.Text('Date To:  ',
                   style: pw.TextStyle(
                       fontWeight: pw.FontWeight.bold, fontSize: 10)),
-              pw.Text(endDate ?? 'N/A',
-                  style: pw.TextStyle(fontSize: 10)),
+              pw.Text(endDate ?? 'N/A', style: pw.TextStyle(fontSize: 10)),
             ]),
           ),
           pw.SizedBox(height: 16),
@@ -1987,20 +1873,19 @@ class _DeliveryManagementScreenState
         final s = _ctrl.deliveryStats.value;
         if (s != null) {
           content.add(pw.Text('Summary',
-              style: pw.TextStyle(
-                  fontSize: 11, fontWeight: pw.FontWeight.bold)));
+              style:
+                  pw.TextStyle(fontSize: 11, fontWeight: pw.FontWeight.bold)));
           content.add(pw.SizedBox(height: 6));
           content.add(pw.TableHelper.fromTextArray(
             headers: ['Metric', 'Value'],
             data: [
-              ['Total Deliveries',        '${s.totalDeliveries}'],
-              ['Total Items Delivered',   '${s.totalItemsDelivered}'],
+              ['Total Deliveries', '${s.totalDeliveries}'],
+              ['Total Items Delivered', '${s.totalItemsDelivered}'],
               ['Clients with Deliveries', '${s.clientsWithDeliveries}'],
-              ["Today's Deliveries",      '${s.todayDeliveries}'],
-              ['This Month',              '${s.thisMonthDeliveries}'],
+              ["Today's Deliveries", '${s.todayDeliveries}'],
+              ['This Month', '${s.thisMonthDeliveries}'],
             ],
-            border: pw.TableBorder.all(
-                color: PdfColors.grey300, width: 0.5),
+            border: pw.TableBorder.all(color: PdfColors.grey300, width: 0.5),
             headerStyle:
                 pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 9),
             cellStyle: pw.TextStyle(fontSize: 9),
@@ -2014,28 +1899,35 @@ class _DeliveryManagementScreenState
 
         // Deliveries table
         content.add(pw.Text('Deliveries',
-            style: pw.TextStyle(
-                fontSize: 11, fontWeight: pw.FontWeight.bold)));
+            style: pw.TextStyle(fontSize: 11, fontWeight: pw.FontWeight.bold)));
         content.add(pw.SizedBox(height: 6));
         content.add(pw.TableHelper.fromTextArray(
-          headers: ['Date', 'Client', 'Item', 'Qty', 'Receiver', 'Signed', 'PDF'],
-          data: rows.map((d) => [
-            DateFormat('yyyy-MM-dd').format(d.deliveryDate),
-            '${d.client.clientName}\n(${d.client.clientCode})',
-            d.itemName,
-            '${d.quantity}',
-            d.receiverName,
-            d.hasSignature ? 'Yes' : 'No',
-            d.hasPdf ? 'Yes' : 'No',
-          ]).toList(),
-          border: pw.TableBorder.all(
-              color: PdfColors.grey300, width: 0.5),
+          headers: [
+            'Date',
+            'Client',
+            'Item',
+            'Qty',
+            'Receiver',
+            'Signed',
+            'PDF'
+          ],
+          data: rows
+              .map((d) => [
+                    DateFormat('yyyy-MM-dd').format(d.deliveryDate),
+                    '${d.client.clientName}\n(${d.client.clientCode})',
+                    d.itemName,
+                    '${d.quantity}',
+                    d.receiverName,
+                    d.hasSignature ? 'Yes' : 'No',
+                    d.hasPdf ? 'Yes' : 'No',
+                  ])
+              .toList(),
+          border: pw.TableBorder.all(color: PdfColors.grey300, width: 0.5),
           headerStyle: pw.TextStyle(
               fontWeight: pw.FontWeight.bold,
               fontSize: 8,
               color: PdfColors.white),
-          headerDecoration:
-              const pw.BoxDecoration(color: PdfColors.blue700),
+          headerDecoration: const pw.BoxDecoration(color: PdfColors.blue700),
           cellStyle: pw.TextStyle(fontSize: 8),
           cellHeight: 28,
           columnWidths: {
@@ -2065,8 +1957,7 @@ class _DeliveryManagementScreenState
                         fontSize: 11, fontWeight: pw.FontWeight.bold)),
                 pw.SizedBox(height: 4),
                 pw.Text('Report generated by PSMS ®',
-                    style: pw.TextStyle(
-                        fontSize: 8, color: PdfColors.grey600)),
+                    style: pw.TextStyle(fontSize: 8, color: PdfColors.grey600)),
               ]),
         ));
         content.add(pw.Spacer());
@@ -2080,15 +1971,14 @@ class _DeliveryManagementScreenState
                       style: pw.TextStyle(fontSize: 8)),
                   pw.SizedBox(height: 10),
                   pw.Text('_____________________________',
-                      style: pw.TextStyle(
-                          fontSize: 8, color: PdfColors.grey600)),
+                      style:
+                          pw.TextStyle(fontSize: 8, color: PdfColors.grey600)),
                 ]),
             if (clientId != null && rows.isNotEmpty)
               pw.Column(
                   crossAxisAlignment: pw.CrossAxisAlignment.start,
                   children: [
-                    pw.Text(
-                        'For Client: ${rows.first.client.clientName}',
+                    pw.Text('For Client: ${rows.first.client.clientName}',
                         style: pw.TextStyle(fontSize: 8)),
                     pw.SizedBox(height: 10),
                     pw.Text('______________________________',
@@ -2119,11 +2009,10 @@ class _DeliveryManagementScreenState
           colorText: Colors.white,
           duration: const Duration(seconds: 4));
     } else {
-      final tmp  = await getTemporaryDirectory();
+      final tmp = await getTemporaryDirectory();
       final file = File('${tmp.path}/$fileName');
       await file.writeAsBytes(bytes);
-      await Share.shareXFiles([XFile(file.path)],
-          text: 'Delivery Report');
+      await Share.shareXFiles([XFile(file.path)], text: 'Delivery Report');
     }
   }
 
@@ -2143,7 +2032,7 @@ class _DeliveryManagementScreenState
 
 class _DeliveryFormDialog extends StatefulWidget {
   final DeliveryController controller;
-  final DeliveryModel?     delivery;
+  final DeliveryModel? delivery;
 
   const _DeliveryFormDialog({required this.controller, this.delivery});
 
@@ -2154,6 +2043,16 @@ class _DeliveryFormDialog extends StatefulWidget {
 class _DeliveryFormDialogState extends State<_DeliveryFormDialog> {
   final _formKey = GlobalKey<FormState>();
 
+  ClientManagementController? _clientCtrl;
+  ClientManagementController get clientCtrl {
+    if (_clientCtrl == null) {
+      _clientCtrl = Get.isRegistered<ClientManagementController>()
+          ? Get.find<ClientManagementController>()
+          : Get.put(ClientManagementController());
+    }
+    return _clientCtrl!;
+  }
+
   late final TextEditingController _itemCtrl;
   late final TextEditingController _qtyCtrl;
   late final TextEditingController _receiverCtrl;
@@ -2161,7 +2060,7 @@ class _DeliveryFormDialogState extends State<_DeliveryFormDialog> {
   late final TextEditingController _ackCtrl;
   late final TextEditingController _dateCtrl;
 
-  int?     _clientId;
+  int? _clientId;
   DateTime _date = DateTime.now();
 
   bool get _isEdit => widget.delivery != null;
@@ -2169,19 +2068,25 @@ class _DeliveryFormDialogState extends State<_DeliveryFormDialog> {
   @override
   void initState() {
     super.initState();
-    final d       = widget.delivery;
-    _itemCtrl     = TextEditingController(text: d?.itemName ?? '');
-    _qtyCtrl      = TextEditingController(
-        text: d != null ? '${d.quantity}' : '');
+    final d = widget.delivery;
+    _itemCtrl = TextEditingController(text: d?.itemName ?? '');
+    _qtyCtrl = TextEditingController(text: d != null ? '${d.quantity}' : '');
     _receiverCtrl = TextEditingController(text: d?.receiverName ?? '');
-    _sigCtrl      = TextEditingController(
-        text: d?.receiverSignature ?? '');
-    _ackCtrl      = TextEditingController(
-        text: d?.acknowledgementStatement ?? '');
-    _clientId     = d?.client.clientId;
-    _date         = d?.deliveryDate ?? DateTime.now();
-    _dateCtrl     = TextEditingController(
-        text: DateFormat('yyyy-MM-dd').format(_date));
+    _sigCtrl = TextEditingController(text: d?.receiverSignature ?? '');
+    _ackCtrl = TextEditingController(text: d?.acknowledgementStatement ?? '');
+    _clientId = d?.client.clientId;
+    _date = d?.deliveryDate ?? DateTime.now();
+    _dateCtrl =
+        TextEditingController(text: DateFormat('yyyy-MM-dd').format(_date));
+
+    WidgetsBinding.instance.addPostFrameCallback((_) => _loadClients());
+  }
+
+  Future<void> _loadClients() async {
+    // fetchClients() is paginated (20/page by default) — bump the page
+    // size so this one call returns every client for the picker.
+    clientCtrl.itemsPerPage.value = 1000;
+    await clientCtrl.fetchClients(showLoading: true);
   }
 
   @override
@@ -2212,30 +2117,24 @@ class _DeliveryFormDialogState extends State<_DeliveryFormDialog> {
         ? await widget.controller.updateDelivery(
             widget.delivery!.deliveryId,
             UpdateDeliveryRequest(
-              itemName:    _itemCtrl.text.trim(),
-              quantity:    int.tryParse(_qtyCtrl.text.trim()),
+              itemName: _itemCtrl.text.trim(),
+              quantity: int.tryParse(_qtyCtrl.text.trim()),
               deliveryDate: _dateCtrl.text.trim(),
               receiverName: _receiverCtrl.text.trim(),
               acknowledgementStatement:
-                  _ackCtrl.text.trim().isNotEmpty
-                      ? _ackCtrl.text.trim()
-                      : null,
+                  _ackCtrl.text.trim().isNotEmpty ? _ackCtrl.text.trim() : null,
             ))
-        : await widget.controller.createDelivery(
-            CreateDeliveryRequest(
-              clientId:    _clientId!,
-              itemName:    _itemCtrl.text.trim(),
-              quantity:    int.parse(_qtyCtrl.text.trim()),
-              deliveryDate: _dateCtrl.text.trim(),
-              receiverName: _receiverCtrl.text.trim(),
-              receiverSignature: _sigCtrl.text.trim().isNotEmpty
-                  ? _sigCtrl.text.trim()
-                  : null,
-              acknowledgementStatement:
-                  _ackCtrl.text.trim().isNotEmpty
-                      ? _ackCtrl.text.trim()
-                      : null,
-            ));
+        : await widget.controller.createDelivery(CreateDeliveryRequest(
+            clientId: _clientId!,
+            itemName: _itemCtrl.text.trim(),
+            quantity: int.parse(_qtyCtrl.text.trim()),
+            deliveryDate: _dateCtrl.text.trim(),
+            receiverName: _receiverCtrl.text.trim(),
+            receiverSignature:
+                _sigCtrl.text.trim().isNotEmpty ? _sigCtrl.text.trim() : null,
+            acknowledgementStatement:
+                _ackCtrl.text.trim().isNotEmpty ? _ackCtrl.text.trim() : null,
+          ));
 
     if (!mounted) return;
     Get.back(); // close loader
@@ -2253,9 +2152,7 @@ class _DeliveryFormDialogState extends State<_DeliveryFormDialog> {
           borderRadius: BorderRadius.circular(20),
           boxShadow: const [
             BoxShadow(
-                color: Colors.black26,
-                blurRadius: 10,
-                offset: Offset(0, 4)),
+                color: Colors.black26, blurRadius: 10, offset: Offset(0, 4)),
           ],
         ),
         child: Column(children: [
@@ -2271,48 +2168,32 @@ class _DeliveryFormDialogState extends State<_DeliveryFormDialog> {
                     if (!_isEdit) ...[
                       _label('Client'),
                       const SizedBox(height: 8),
-                      Obx(() => DropdownButtonFormField<int>(
-                            value: _clientId,
-                            isExpanded: true,
-                            decoration: InputDecoration(
-                              border: OutlineInputBorder(
-                                  borderRadius:
-                                      BorderRadius.circular(12)),
-                              hintText: 'Select client',
-                              contentPadding:
-                                  const EdgeInsets.symmetric(
-                                      horizontal: 12, vertical: 14),
-                            ),
-                            items: widget.controller.clients
-                                .map((c) => DropdownMenuItem(
-                                      value: c.clientId,
-                                      child: Text(
-                                          '${c.clientCode} – ${c.clientName}',
-                                          overflow:
-                                              TextOverflow.ellipsis),
-                                    ))
-                                .toList(),
-                            onChanged: (v) =>
-                                setState(() => _clientId = v),
-                            validator: (v) => v == null
-                                ? 'Please select a client'
-                                : null,
+                      Obx(() => ClientSearchField(
+                            clients: clientCtrl.clients,
+                            selectedClientId: _clientId,
+                            isLoading: clientCtrl.isLoading.value,
+                            label: 'Select client *',
+                            onChanged: (v) => setState(() => _clientId = v),
                           )),
+                      if (_clientId == null)
+                        Padding(
+                          padding: const EdgeInsets.only(left: 4, top: 4),
+                          child: Text('Please select a client',
+                              style: TextStyle(
+                                  color: Colors.red.shade700, fontSize: 12)),
+                        ),
                       const SizedBox(height: 20),
                     ],
-
                     _label('Item Name'),
                     const SizedBox(height: 8),
                     TextFormField(
                       controller: _itemCtrl,
                       decoration: _inputDec('e.g. Office Documents'),
-                      validator: (v) =>
-                          v == null || v.trim().isEmpty
-                              ? 'Item name is required'
-                              : null,
+                      validator: (v) => v == null || v.trim().isEmpty
+                          ? 'Item name is required'
+                          : null,
                     ),
                     const SizedBox(height: 20),
-
                     Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
@@ -2348,22 +2229,20 @@ class _DeliveryFormDialogState extends State<_DeliveryFormDialog> {
                                 controller: _dateCtrl,
                                 readOnly: true,
                                 decoration: _inputDec('').copyWith(
-                                  suffixIcon: const Icon(
-                                      Icons.calendar_today, size: 18),
+                                  suffixIcon: const Icon(Icons.calendar_today,
+                                      size: 18),
                                 ),
                                 onTap: () async {
                                   final p = await showDatePicker(
                                     context: context,
                                     initialDate: _date,
                                     firstDate: DateTime(2000),
-                                    lastDate: DateTime.now().add(
-                                        const Duration(days: 365)),
+                                    lastDate: DateTime.now()
+                                        .add(const Duration(days: 365)),
                                     builder: (ctx, child) => Theme(
                                       data: Theme.of(ctx).copyWith(
-                                        colorScheme:
-                                            const ColorScheme.light(
-                                                primary:
-                                                    Color(0xFF3498DB)),
+                                        colorScheme: const ColorScheme.light(
+                                            primary: Color(0xFF3498DB)),
                                       ),
                                       child: child!,
                                     ),
@@ -2372,15 +2251,13 @@ class _DeliveryFormDialogState extends State<_DeliveryFormDialog> {
                                     setState(() {
                                       _date = p;
                                       _dateCtrl.text =
-                                          DateFormat('yyyy-MM-dd')
-                                              .format(p);
+                                          DateFormat('yyyy-MM-dd').format(p);
                                     });
                                   }
                                 },
-                                validator: (v) =>
-                                    v == null || v.trim().isEmpty
-                                        ? 'Date is required'
-                                        : null,
+                                validator: (v) => v == null || v.trim().isEmpty
+                                    ? 'Date is required'
+                                    : null,
                               ),
                             ],
                           ),
@@ -2388,39 +2265,31 @@ class _DeliveryFormDialogState extends State<_DeliveryFormDialog> {
                       ],
                     ),
                     const SizedBox(height: 20),
-
                     _label('Receiver Name'),
                     const SizedBox(height: 8),
                     TextFormField(
                       controller: _receiverCtrl,
-                      decoration:
-                          _inputDec('Full name of the receiver'),
-                      validator: (v) =>
-                          v == null || v.trim().isEmpty
-                              ? 'Receiver name is required'
-                              : null,
+                      decoration: _inputDec('Full name of the receiver'),
+                      validator: (v) => v == null || v.trim().isEmpty
+                          ? 'Receiver name is required'
+                          : null,
                     ),
-
                     if (!_isEdit) ...[
                       const SizedBox(height: 20),
                       _buildDividerLabel('Receiver Signature (optional)'),
                       const SizedBox(height: 8),
                       TextFormField(
                         controller: _sigCtrl,
-                        decoration: _inputDec(
-                            'Signature data or reference'),
+                        decoration: _inputDec('Signature data or reference'),
                       ),
                     ],
-
                     const SizedBox(height: 20),
-                    _buildDividerLabel(
-                        'Acknowledgement Statement (optional)'),
+                    _buildDividerLabel('Acknowledgement Statement (optional)'),
                     const SizedBox(height: 8),
                     TextFormField(
                       controller: _ackCtrl,
                       maxLines: 2,
-                      decoration: _inputDec(
-                          'e.g. Received in good condition'),
+                      decoration: _inputDec('e.g. Received in good condition'),
                     ),
                   ],
                 ),
@@ -2437,8 +2306,8 @@ class _DeliveryFormDialogState extends State<_DeliveryFormDialog> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
       decoration: const BoxDecoration(
-        gradient: LinearGradient(
-            colors: [Color(0xFF3498DB), Color(0xFF2980B9)]),
+        gradient:
+            LinearGradient(colors: [Color(0xFF3498DB), Color(0xFF2980B9)]),
         borderRadius: BorderRadius.only(
           topLeft: Radius.circular(20),
           topRight: Radius.circular(20),
@@ -2448,22 +2317,18 @@ class _DeliveryFormDialogState extends State<_DeliveryFormDialog> {
         const Icon(Icons.local_shipping, color: Colors.white, size: 24),
         const SizedBox(width: 14),
         Expanded(
-          child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(_isEdit ? 'Edit Delivery' : 'New Delivery',
-                    style: const TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.w600,
-                        color: Colors.white)),
-                Text(
-                  _isEdit
-                      ? 'Update delivery details'
-                      : 'Record a new delivery',
-                  style: const TextStyle(
-                      fontSize: 13, color: Colors.white70),
-                ),
-              ]),
+          child:
+              Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text(_isEdit ? 'Edit Delivery' : 'New Delivery',
+                style: const TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.white)),
+            Text(
+              _isEdit ? 'Update delivery details' : 'Record a new delivery',
+              style: const TextStyle(fontSize: 13, color: Colors.white70),
+            ),
+          ]),
         ),
         IconButton(
           icon: const Icon(Icons.close, color: Colors.white70),
@@ -2491,8 +2356,7 @@ class _DeliveryFormDialogState extends State<_DeliveryFormDialog> {
             ),
             child: const Text('Cancel',
                 style: TextStyle(
-                    color: Color(0xFF3498DB),
-                    fontWeight: FontWeight.w600)),
+                    color: Color(0xFF3498DB), fontWeight: FontWeight.w600)),
           ),
         ),
         const SizedBox(width: 16),
@@ -2514,11 +2378,9 @@ class _DeliveryFormDialogState extends State<_DeliveryFormDialog> {
                       child: CircularProgressIndicator(
                           strokeWidth: 2, color: Colors.white),
                     )
-                  : Text(
-                      _isEdit ? 'Save Changes' : 'Create Delivery',
+                  : Text(_isEdit ? 'Save Changes' : 'Create Delivery',
                       style: const TextStyle(
-                          color: Colors.white,
-                          fontWeight: FontWeight.w600)),
+                          color: Colors.white, fontWeight: FontWeight.w600)),
             );
           }),
         ),
@@ -2528,17 +2390,14 @@ class _DeliveryFormDialogState extends State<_DeliveryFormDialog> {
 
   Widget _label(String text) => Text(text,
       style: const TextStyle(
-          fontSize: 15,
-          fontWeight: FontWeight.w600,
-          color: Color(0xFF2C3E50)));
+          fontSize: 15, fontWeight: FontWeight.w600, color: Color(0xFF2C3E50)));
 
   InputDecoration _inputDec(String hint) => InputDecoration(
         hintText: hint,
         hintStyle: const TextStyle(color: Colors.grey),
-        border:
-            OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-        contentPadding: const EdgeInsets.symmetric(
-            horizontal: 14, vertical: 14),
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+        contentPadding:
+            const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
       );
 
   Widget _buildDividerLabel(String label) {
@@ -2562,11 +2421,11 @@ class _DeliveryFormDialogState extends State<_DeliveryFormDialog> {
 // ─────────────────────────────────────────────────────────────────────────────
 
 class _DeliveryDetailsDialog extends StatelessWidget {
-  final DeliveryModel      delivery;
+  final DeliveryModel delivery;
   final DeliveryController controller;
-  final VoidCallback?      onEdit;
-  final VoidCallback?      onDelete;
-  final VoidCallback?      onSign;
+  final VoidCallback? onEdit;
+  final VoidCallback? onDelete;
+  final VoidCallback? onSign;
 
   const _DeliveryDetailsDialog({
     required this.delivery,
@@ -2592,8 +2451,7 @@ class _DeliveryDetailsDialog extends StatelessWidget {
     return Dialog(
       backgroundColor: Colors.transparent,
       child: Container(
-        constraints:
-            const BoxConstraints(maxWidth: 700, maxHeight: 700),
+        constraints: const BoxConstraints(maxWidth: 700, maxHeight: 700),
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(16),
@@ -2615,8 +2473,7 @@ class _DeliveryDetailsDialog extends StatelessWidget {
                 topLeft: Radius.circular(16),
                 topRight: Radius.circular(16),
               ),
-              border: Border(
-                  bottom: BorderSide(color: Colors.grey.shade300)),
+              border: Border(bottom: BorderSide(color: Colors.grey.shade300)),
             ),
             child: Row(children: [
               Container(
@@ -2624,8 +2481,7 @@ class _DeliveryDetailsDialog extends StatelessWidget {
                 decoration: BoxDecoration(
                   color: Colors.blue.withOpacity(0.15),
                   borderRadius: BorderRadius.circular(12),
-                  border: Border.all(
-                      color: Colors.blue.withOpacity(0.4)),
+                  border: Border.all(color: Colors.blue.withOpacity(0.4)),
                 ),
                 child: const Icon(Icons.local_shipping,
                     color: Colors.blue, size: 24),
@@ -2644,9 +2500,8 @@ class _DeliveryDetailsDialog extends StatelessWidget {
                     Text(
                       'Delivery #${delivery.deliveryId}  ·  '
                       '${delivery.client.clientCode}',
-                      style: TextStyle(
-                          color: Colors.grey.shade600,
-                          fontSize: 14),
+                      style:
+                          TextStyle(color: Colors.grey.shade600, fontSize: 14),
                     ),
                   ],
                 ),
@@ -2674,7 +2529,8 @@ class _DeliveryDetailsDialog extends StatelessWidget {
                   const SizedBox(height: 12),
                   _infoRow('Item', delivery.itemName),
                   _infoRow('Quantity', '${delivery.quantity}'),
-                  _infoRow('Delivery Date',
+                  _infoRow(
+                      'Delivery Date',
                       DateFormat('MMM dd, yyyy HH:mm')
                           .format(delivery.deliveryDate.toLocal())),
 
@@ -2687,8 +2543,7 @@ class _DeliveryDetailsDialog extends StatelessWidget {
                   _infoRow('Name', delivery.client.clientName),
                   _infoRow('Code', delivery.client.clientCode),
                   if (delivery.client.contactPerson != null)
-                    _infoRow('Contact',
-                        delivery.client.contactPerson!),
+                    _infoRow('Contact', delivery.client.contactPerson!),
                   if (delivery.client.email != null)
                     _infoRow('Email', delivery.client.email!),
                   if (delivery.client.phone != null)
@@ -2701,8 +2556,8 @@ class _DeliveryDetailsDialog extends StatelessWidget {
                   _sectionTitle('Receiver'),
                   const SizedBox(height: 12),
                   _infoRow('Name', delivery.receiverName),
-                  _infoRow('PDF',
-                      delivery.hasPdf ? 'Available' : 'Not available'),
+                  _infoRow(
+                      'PDF', delivery.hasPdf ? 'Available' : 'Not available'),
                   const SizedBox(height: 16),
 
                   // ── Signature status panel (mirrors retrievals) ──────────
@@ -2726,9 +2581,9 @@ class _DeliveryDetailsDialog extends StatelessWidget {
 
                   _sectionTitle('Meta'),
                   const SizedBox(height: 12),
+                  _infoRow('Created By', delivery.createdBy.username),
                   _infoRow(
-                      'Created By', delivery.createdBy.username),
-                  _infoRow('Created At',
+                      'Created At',
                       DateFormat('MMM dd, yyyy HH:mm')
                           .format(delivery.createdAt.toLocal())),
                 ],
@@ -2745,8 +2600,7 @@ class _DeliveryDetailsDialog extends StatelessWidget {
                 bottomLeft: Radius.circular(16),
                 bottomRight: Radius.circular(16),
               ),
-              border:
-                  Border(top: BorderSide(color: Colors.grey.shade300)),
+              border: Border(top: BorderSide(color: Colors.grey.shade300)),
             ),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.end,
@@ -2764,14 +2618,11 @@ class _DeliveryDetailsDialog extends StatelessWidget {
                   const SizedBox(width: 12),
                   OutlinedButton.icon(
                     onPressed: onEdit,
-                    icon: const Icon(Icons.edit,
-                        color: Color(0xFF3498DB)),
+                    icon: const Icon(Icons.edit, color: Color(0xFF3498DB)),
                     label: const Text('Edit',
-                        style: TextStyle(
-                            color: Color(0xFF3498DB))),
+                        style: TextStyle(color: Color(0xFF3498DB))),
                     style: OutlinedButton.styleFrom(
-                        side: const BorderSide(
-                            color: Color(0xFF3498DB))),
+                        side: const BorderSide(color: Color(0xFF3498DB))),
                   ),
                 ],
                 if (onDelete != null) ...[
@@ -2782,8 +2633,7 @@ class _DeliveryDetailsDialog extends StatelessWidget {
                     label: const Text('Delete',
                         style: TextStyle(color: Colors.red)),
                     style: OutlinedButton.styleFrom(
-                        side:
-                            const BorderSide(color: Colors.red)),
+                        side: const BorderSide(color: Colors.red)),
                   ),
                 ],
                 const SizedBox(width: 12),
@@ -2805,12 +2655,9 @@ class _DeliveryDetailsDialog extends StatelessWidget {
 
   Widget _sectionTitle(String title) => Text(title,
       style: const TextStyle(
-          fontSize: 16,
-          fontWeight: FontWeight.bold,
-          color: Colors.black));
+          fontSize: 16, fontWeight: FontWeight.bold, color: Colors.black));
 
-  Widget _infoRow(String label, String value,
-      {bool isError = false}) {
+  Widget _infoRow(String label, String value, {bool isError = false}) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
       child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -2825,8 +2672,7 @@ class _DeliveryDetailsDialog extends StatelessWidget {
         Expanded(
           child: Text(value,
               style: TextStyle(
-                  color: isError ? Colors.red : Colors.black87,
-                  fontSize: 14)),
+                  color: isError ? Colors.red : Colors.black87, fontSize: 14)),
         ),
       ]),
     );
@@ -2841,9 +2687,7 @@ class _DeliveryDetailsDialog extends StatelessWidget {
             : Colors.grey.withOpacity(0.1),
         borderRadius: BorderRadius.circular(20),
         border: Border.all(
-          color: active
-              ? Colors.green.withOpacity(0.4)
-              : Colors.grey.shade300,
+          color: active ? Colors.green.withOpacity(0.4) : Colors.grey.shade300,
         ),
       ),
       child: Row(mainAxisSize: MainAxisSize.min, children: [
@@ -2869,11 +2713,9 @@ class _DeliveryDetailsDialog extends StatelessWidget {
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       // Banner — green if signed, blue prompt if not
       _signatureBanner(
-        icon:     signed ? Icons.verified : Icons.edit_note,
-        color:    signed ? Colors.green   : Colors.blue,
-        title:    signed
-            ? 'Signature Captured'
-            : 'Awaiting Receiver Signature',
+        icon: signed ? Icons.verified : Icons.edit_note,
+        color: signed ? Colors.green : Colors.blue,
+        title: signed ? 'Signature Captured' : 'Awaiting Receiver Signature',
         subtitle: signed
             ? 'Receiver signature has been recorded.'
             : 'Tap "Add Signature" in the footer to capture.',
@@ -2889,9 +2731,9 @@ class _DeliveryDetailsDialog extends StatelessWidget {
 
   Widget _signatureBanner({
     required IconData icon,
-    required Color    color,
-    required String   title,
-    required String   subtitle,
+    required Color color,
+    required String title,
+    required String subtitle,
   }) {
     return Container(
       padding: const EdgeInsets.all(14),
@@ -2909,12 +2751,9 @@ class _DeliveryDetailsDialog extends StatelessWidget {
             children: [
               Text(title,
                   style: TextStyle(
-                      fontWeight: FontWeight.w600,
-                      fontSize: 14,
-                      color: color)),
+                      fontWeight: FontWeight.w600, fontSize: 14, color: color)),
               Text(subtitle,
-                  style: TextStyle(
-                      fontSize: 12, color: Colors.grey.shade600)),
+                  style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
             ],
           ),
         ),
@@ -2973,8 +2812,7 @@ class _DeliveryDetailsDialog extends StatelessWidget {
                         const SizedBox(height: 4),
                         Text('Not yet signed',
                             style: TextStyle(
-                                color: Colors.grey.shade500,
-                                fontSize: 12)),
+                                color: Colors.grey.shade500, fontSize: 12)),
                       ],
                     ),
                   ),

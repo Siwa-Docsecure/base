@@ -1,504 +1,488 @@
-// box_details_dialog.dart
+// ─────────────────────────────────────────────────────────────────────────────
+// BOX DETAIL DIALOG — professional tabbed layout
+// ─────────────────────────────────────────────────────────────────────────────
+
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:psms/constants/api_constants.dart'; // ADD THIS IMPORT
 import 'package:psms/models/box_model.dart';
+import 'package:qr_flutter/qr_flutter.dart';
 
-class BoxDetailsDialog extends StatelessWidget {
+// ─────────────────────────────────────────────────────────────────────────────
+// CONSTANTS
+// ─────────────────────────────────────────────────────────────────────────────
+
+const _kPrimary = Color(0xFF2C3E50);
+
+class BoxDetailDialog extends StatefulWidget {
   final BoxModel box;
+  final VoidCallback? onEdit;
+  final void Function(String status) onStatusChange;
 
-  BoxDetailsDialog({super.key, required this.box});
+  const BoxDetailDialog({
+    required this.box,
+    this.onEdit,
+    required this.onStatusChange,
+  });
+
+  @override
+  State<BoxDetailDialog> createState() => BoxDetailDialogState();
+}
+
+class BoxDetailDialogState extends State<BoxDetailDialog>
+    with SingleTickerProviderStateMixin {
+  late TabController _tabCtrl;
+
+  @override
+  void initState() {
+    super.initState();
+    _tabCtrl = TabController(
+        length: widget.box.boxImage != null && widget.box.boxImage!.isNotEmpty
+            ? 3
+            : 2,
+        vsync: this);
+  }
+
+  @override
+  void dispose() {
+    _tabCtrl.dispose();
+    super.dispose();
+  }
+
+  BoxModel get box => widget.box;
 
   @override
   Widget build(BuildContext context) {
-    return Dialog(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      backgroundColor: Colors.transparent,
-      child: Container(
-        width: 700,
-        height: MediaQuery.of(context).size.height * 0.9,
-        constraints: BoxConstraints(
-          minHeight: 600,
-          maxHeight: MediaQuery.of(context).size.height * 0.9,
-        ),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(16),
-        ),
+    final statusColor = _statusColor(box.status);
+    final hasImage = box.boxImage != null && box.boxImage!.isNotEmpty;
+
+    return Container(
+      width: 680,
+      constraints:
+          BoxConstraints(maxHeight: MediaQuery.of(context).size.height * 0.85),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+              color: Colors.black.withOpacity(0.15),
+              blurRadius: 40,
+              offset: const Offset(0, 8))
+        ],
+      ),
+      child: Column(
+        children: [
+          // ── Header ──────────────────────────────────────────────────────
+          Container(
+            padding: const EdgeInsets.fromLTRB(20, 20, 16, 0),
+            decoration: const BoxDecoration(
+              gradient: LinearGradient(
+                  colors: [Color(0xFF2C3E50), Color(0xFF3D5166)]),
+              borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+            ),
+            child: Column(
+              children: [
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Status indicator orb
+                    Container(
+                      width: 44,
+                      height: 44,
+                      decoration: BoxDecoration(
+                        color: statusColor.withOpacity(0.2),
+                        shape: BoxShape.circle,
+                        border: Border.all(
+                            color: statusColor.withOpacity(0.5), width: 2),
+                      ),
+                      child: Icon(_statusIcon(box.status),
+                          color: statusColor, size: 20),
+                    ),
+                    const SizedBox(width: 14),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(box.boxNumber,
+                              style: const TextStyle(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.w700,
+                                  fontSize: 20)),
+                          const SizedBox(height: 2),
+                          Text(box.description,
+                              style: const TextStyle(
+                                  color: Colors.white60, fontSize: 13),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis),
+                          const SizedBox(height: 6),
+                          Row(
+                            children: [
+                              _headerChip(
+                                  box.client.clientCode, Icons.business),
+                              const SizedBox(width: 8),
+                              _headerChip(
+                                  DateFormat('dd MMM yyyy')
+                                      .format(box.dateReceived),
+                                  Icons.calendar_today),
+                              if (box.rackingLabel != null) ...[
+                                const SizedBox(width: 8),
+                                _headerChip(box.rackingLabel!.labelCode,
+                                    Icons.location_on),
+                              ],
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                    // Actions
+                    Row(
+                      children: [
+                        if (widget.onEdit != null)
+                          IconButton(
+                            icon: const Icon(Icons.edit_outlined,
+                                color: Colors.white70),
+                            onPressed: widget.onEdit,
+                            tooltip: 'Edit',
+                          ),
+                        IconButton(
+                          icon: const Icon(Icons.close, color: Colors.white60),
+                          onPressed: () => Navigator.pop(context),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                // Tab bar
+                TabBar(
+                  controller: _tabCtrl,
+                  labelColor: Colors.white,
+                  unselectedLabelColor: Colors.white38,
+                  indicatorColor: const Color(0xFF3498DB),
+                  indicatorWeight: 2,
+                  labelStyle: const TextStyle(
+                      fontSize: 12, fontWeight: FontWeight.w600),
+                  tabs: [
+                    const Tab(text: 'Details'),
+                    const Tab(text: 'QR Code'),
+                    if (hasImage) const Tab(text: 'Image'),
+                  ],
+                ),
+              ],
+            ),
+          ),
+
+          // ── Tab content ──────────────────────────────────────────────────
+          Expanded(
+            child: TabBarView(
+              controller: _tabCtrl,
+              children: [
+                _buildDetailsTab(),
+                _buildQrTab(),
+                if (hasImage) _buildImageTab(),
+              ],
+            ),
+          ),
+
+          // ── Footer actions ───────────────────────────────────────────────
+          Container(
+            padding: const EdgeInsets.fromLTRB(20, 12, 20, 16),
+            decoration: BoxDecoration(
+              border: Border(top: BorderSide(color: Colors.grey.shade100)),
+            ),
+            child: Row(
+              children: [
+                // Status change buttons
+                if (box.canBeRetrieved)
+                  _footerBtn('Mark Retrieved', Icons.move_to_inbox, Colors.blue,
+                      () => widget.onStatusChange('retrieved')),
+                if (box.canBeStored)
+                  _footerBtn('Mark Stored', Icons.storage, Colors.green,
+                      () => widget.onStatusChange('stored')),
+                if (box.canBeDestroyed)
+                  _footerBtn('Mark Destroyed', Icons.delete_forever, Colors.red,
+                      () => widget.onStatusChange('destroyed')),
+                const Spacer(),
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('Close'),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _headerChip(String label, IconData icon) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 11, color: Colors.white60),
+          const SizedBox(width: 4),
+          Text(label,
+              style: const TextStyle(color: Colors.white70, fontSize: 11)),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDetailsTab() {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _section('Client', [
+            _detailRow('Client Code', box.client.clientCode),
+            _detailRow('Client Name', box.client.clientName),
+          ]),
+          const SizedBox(height: 16),
+          _section('Box Information', [
+            _detailRow('Box Number', box.boxNumber),
+            _detailRow('Description', box.description),
+            _detailRow('Box Size', box.boxSize ?? 'A3'),
+            _detailRow('Status', box.statusDisplay),
+            _detailRow('Date Received',
+                DateFormat('dd MMM yyyy').format(box.dateReceived)),
+          ]),
+          const SizedBox(height: 16),
+          _section('Storage', [
+            _detailRow(
+                'Location', box.rackingLabel?.location ?? 'Not Assigned'),
+            _detailRow('Rack Code', box.rackingLabel?.labelCode ?? '—'),
+          ]),
+          const SizedBox(height: 16),
+          _section('Retention', [
+            _detailRow('Data Years', box.dataYears ?? '—'),
+            _detailRow('Date Range', box.dateRange ?? '—'),
+            _detailRow(
+                'Retention Years', box.retentionYears?.toString() ?? '—'),
+            _detailRow(
+                'Destruction Year', box.destructionYear?.toString() ?? '—'),
+          ]),
+        ],
+      ),
+    );
+  }
+
+  Widget _section(String title, List<Widget> rows) {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.grey.shade50,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: Colors.grey.shade200),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+            child: Text(title,
+                style: const TextStyle(
+                    fontWeight: FontWeight.w700,
+                    fontSize: 13,
+                    color: _kPrimary)),
+          ),
+          const Divider(height: 1),
+          ...rows,
+        ],
+      ),
+    );
+  }
+
+  Widget _detailRow(String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 130,
+            child: Text(label,
+                style: const TextStyle(
+                    fontSize: 12,
+                    color: Colors.grey,
+                    fontWeight: FontWeight.w500)),
+          ),
+          Expanded(
+            child: Text(value,
+                style: const TextStyle(fontSize: 13, color: _kPrimary)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildQrTab() {
+    final payload = jsonEncode({
+      'id': box.boxId,
+      'number': box.boxNumber,
+      'client': box.client.clientCode,
+      'status': box.status,
+      if (box.rackingLabel != null) 'rack': box.rackingLabel!.labelCode,
+      if (box.destructionYear != null) 'destYear': box.destructionYear,
+    });
+
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            // Header
             Container(
-              padding: EdgeInsets.all(20),
+              padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  colors: [
-                    _getStatusColor(box.status),
-                    _getStatusColor(box.status).withOpacity(0.8),
-                  ],
-                ),
-                borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-              ),
-              child: Row(
-                children: [
-                  Container(
-                    padding: EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(0.2),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Icon(
-                      _getStatusIcon(box.status),
-                      color: Colors.white,
-                      size: 28,
-                    ),
-                  ),
-                  SizedBox(width: 16),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          box.boxNumber,
-                          style: TextStyle(
-                            fontSize: 20,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.white,
-                          ),
-                        ),
-                        SizedBox(height: 4),
-                        Container(
-                          padding: EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                          decoration: BoxDecoration(
-                            color: Colors.white.withOpacity(0.3),
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: Text(
-                            box.statusDisplay,
-                            style: TextStyle(
-                              fontSize: 13,
-                              color: Colors.white,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  IconButton(
-                    icon: Icon(Icons.close, color: Colors.white),
-                    onPressed: () => Navigator.pop(context),
-                  ),
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: Colors.grey.shade200),
+                boxShadow: [
+                  BoxShadow(
+                      color: Colors.black.withOpacity(0.04), blurRadius: 10)
                 ],
               ),
-            ),
-
-            // Content
-            Expanded(
-              child: SingleChildScrollView(
-                padding: EdgeInsets.all(20),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // Description Card
-                    _buildInfoCard(
-                      icon: Icons.description,
-                      title: 'Description',
-                      children: [
-                        Text(
-                          box.description,
-                          style: TextStyle(
-                            fontSize: 15,
-                            color: Color(0xFF2C3E50),
-                            height: 1.4,
-                          ),
-                        ),
-                      ],
-                    ),
-
-                    SizedBox(height: 16),
-
-                    // Client Information Card
-                    _buildInfoCard(
-                      icon: Icons.business,
-                      title: 'Client Information',
-                      children: [
-                        _buildDetailRow('Client Code', box.client.clientCode),
-                        Divider(height: 16),
-                        _buildDetailRow('Client Name', box.client.clientName),
-                      ],
-                    ),
-
-                    SizedBox(height: 16),
-
-                    // Box Information Card (updated with new fields)
-                    _buildInfoCard(
-                      icon: Icons.inventory_2,
-                      title: 'Box Information',
-                      children: [
-                        _buildDetailRow(
-                          'Date Received',
-                          DateFormat('MMMM dd, yyyy').format(box.dateReceived),
-                        ),
-                        Divider(height: 16),
-                        Row(
-                          children: [
-                            Expanded(
-                              child: _buildDetailRow(
-                                'Year Received',
-                                box.yearReceived.toString(),
-                              ),
-                            ),
-                            Expanded(
-                              child: _buildDetailRow(
-                                'Retention',
-                                '${box.retentionYears} years',
-                              ),
-                            ),
-                          ],
-                        ),
-                        Divider(height: 16),
-                        _buildDetailRow(
-                          'Destruction Year',
-                          box.destructionYear?.toString() ?? 'N/A',
-                        ),
-
-                        // New fields
-                        if (box.boxSize != null) ...[
-                          Divider(height: 16),
-                          _buildDetailRow('Box Size', box.boxSize!),
-                        ],
-                        if (box.dataYears != null) ...[
-                          Divider(height: 16),
-                          _buildDetailRow('Data Years', box.dataYears!),
-                        ],
-                        if (box.dateRange != null) ...[
-                          Divider(height: 16),
-                          _buildDetailRow('Date Range', box.dateRange!),
-                        ],
-                        if (box.boxImage != null) ...[
-                          Divider(height: 16),
-                          _buildDetailRow('Box Image', box.boxImage!),
-                          // Optional: Add a button to view image
-                        ],
-
-                        // Pending destruction warning
-                        if (box.isPendingDestruction) ...[
-                          SizedBox(height: 12),
-                          Container(
-                            padding: EdgeInsets.all(12),
-                            decoration: BoxDecoration(
-                              color: Colors.orange[50],
-                              borderRadius: BorderRadius.circular(8),
-                              border: Border.all(color: Colors.orange, width: 1.5),
-                            ),
-                            child: Row(
-                              children: [
-                                Icon(Icons.warning_amber,
-                                    color: Colors.orange, size: 22),
-                                SizedBox(width: 12),
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: [
-                                      Text(
-                                        'Pending Destruction',
-                                        style: TextStyle(
-                                          color: Colors.orange[900],
-                                          fontWeight: FontWeight.bold,
-                                          fontSize: 14,
-                                        ),
-                                      ),
-                                      SizedBox(height: 2),
-                                      Text(
-                                        'This box is scheduled for destruction',
-                                        style: TextStyle(
-                                          color: Colors.orange[700],
-                                          fontSize: 12,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
-                      ],
-                    ),
-
-                    SizedBox(height: 16),
-
-                    // Location Card (if available)
-                    if (box.rackingLabel != null)
-                      _buildInfoCard(
-                        icon: Icons.location_on,
-                        title: 'Storage Location',
-                        children: [
-                          _buildDetailRow('Label Code', box.rackingLabel!.labelCode),
-                          Divider(height: 16),
-                          _buildDetailRow('Location', box.rackingLabel!.location),
-                        ],
-                      )
-                    else
-                      _buildInfoCard(
-                        icon: Icons.location_off,
-                        title: 'Storage Location',
-                        children: [
-                          Container(
-                            padding: EdgeInsets.all(12),
-                            decoration: BoxDecoration(
-                              color: Colors.grey[100],
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            child: Row(
-                              children: [
-                                Icon(Icons.info_outline,
-                                    color: Colors.grey[600], size: 20),
-                                SizedBox(width: 8),
-                                Text(
-                                  'No location assigned',
-                                  style: TextStyle(color: Colors.grey[600]),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
-                      ),
-
-                    SizedBox(height: 16),
-
-                    // System Information Card
-                    _buildInfoCard(
-                      icon: Icons.info_outline,
-                      title: 'System Information',
-                      children: [
-                        _buildDetailRow(
-                          'Created',
-                          DateFormat('MMM dd, yyyy - HH:mm').format(box.createdAt),
-                        ),
-                        Divider(height: 16),
-                        _buildDetailRow(
-                          'Last Updated',
-                          DateFormat('MMM dd, yyyy - HH:mm').format(box.updatedAt),
-                        ),
-                      ],
-                    ),
-
-                    SizedBox(height: 16),
-
-                    // QR Code Card
-                    _buildInfoCard(
-                      icon: Icons.qr_code,
-                      title: 'Quick Access',
-                      children: [
-                        Container(
-                          alignment: Alignment.center,
-                          padding: EdgeInsets.all(20),
-                          decoration: BoxDecoration(
-                            color: Colors.grey[50],
-                            borderRadius: BorderRadius.circular(8),
-                            border: Border.all(color: Colors.grey[300]!),
-                          ),
-                          child: Column(
-                            children: [
-                              Icon(Icons.qr_code_2,
-                                  size: 60, color: Color(0xFF3498DB)),
-                              SizedBox(height: 12),
-                              Text(
-                                'Scan QR code for quick access',
-                                style: TextStyle(
-                                  color: Colors.grey[600],
-                                  fontSize: 13,
-                                ),
-                              ),
-                              SizedBox(height: 8),
-                              Text(
-                                box.boxNumber,
-                                style: TextStyle(
-                                  fontWeight: FontWeight.bold,
-                                  color: Color(0xFF2C3E50),
-                                  fontSize: 14,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
+              child: QrImageView(
+                data: payload,
+                version: QrVersions.auto,
+                size: 200,
+                backgroundColor: Colors.white,
               ),
             ),
-
-            // Footer Actions
-            Container(
-              padding: EdgeInsets.all(20),
-              decoration: BoxDecoration(
-                color: Colors.grey[50],
-                border: Border(top: BorderSide(color: Colors.grey[200]!)),
-                borderRadius: BorderRadius.vertical(bottom: Radius.circular(16)),
-              ),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: OutlinedButton.icon(
-                      onPressed: () {
-                        // Print label functionality
-                        Navigator.pop(context);
-                      },
-                      style: OutlinedButton.styleFrom(
-                        padding: EdgeInsets.symmetric(vertical: 14),
-                        side: BorderSide(color: Color(0xFF3498DB)),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                      ),
-                      icon: Icon(Icons.print, color: Color(0xFF3498DB)),
-                      label: Text(
-                        'Print Label',
-                        style: TextStyle(color: Color(0xFF3498DB)),
-                      ),
-                    ),
-                  ),
-                  SizedBox(width: 12),
-                  Expanded(
-                    child: ElevatedButton.icon(
-                      onPressed: () {
-                        Navigator.pop(context);
-                        // Navigate to edit
-                      },
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Color(0xFF3498DB),
-                        padding: EdgeInsets.symmetric(vertical: 14),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        elevation: 0,
-                      ),
-                      icon: Icon(Icons.edit, color: Colors.white),
-                      label: Text(
-                        'Edit Box',
-                        style: TextStyle(color: Colors.white),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
+            const SizedBox(height: 16),
+            Text(box.boxNumber,
+                style: const TextStyle(
+                    fontWeight: FontWeight.w700,
+                    fontSize: 16,
+                    color: _kPrimary)),
+            Text(box.client.clientName,
+                style: const TextStyle(color: Colors.grey, fontSize: 12)),
+            const SizedBox(height: 8),
+            Text(payload,
+                style: const TextStyle(
+                    fontSize: 9, color: Colors.grey, fontFamily: 'monospace'),
+                textAlign: TextAlign.center,
+                maxLines: 3,
+                overflow: TextOverflow.ellipsis),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildInfoCard({
-    required IconData icon,
-    required String title,
-    required List<Widget> children,
-  }) {
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.grey[200]!),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.03),
-            blurRadius: 10,
-            offset: Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Padding(
-            padding: EdgeInsets.all(16),
-            child: Row(
-              children: [
-                Container(
-                  padding: EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: Color(0xFF3498DB).withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Icon(icon, color: Color(0xFF3498DB), size: 20),
-                ),
-                SizedBox(width: 12),
-                Text(
-                  title,
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w600,
-                    color: Color(0xFF2C3E50),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          Divider(height: 1),
-          Padding(
-            padding: EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: children,
-            ),
-          ),
-        ],
+  // ========== MODIFIED IMAGE TAB ==========
+  Widget _buildImageTab() {
+    final imagePath = box.boxImage;
+    print('DEBUG: Box image path from model: $imagePath'); // ADD THIS
+    if (imagePath == null || imagePath.isEmpty) {
+      print('DEBUG: No image path found');
+      return const Center(
+          child: Icon(Icons.broken_image, size: 80, color: Colors.grey));
+    }
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(12),
+          child: _buildImageFromPath(imagePath),
+        ),
       ),
     );
   }
 
-  Widget _buildDetailRow(String label, String value) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        SizedBox(
-          width: 130,
-          child: Text(
-            label,
-            style: TextStyle(
-              fontWeight: FontWeight.w500,
-              color: Colors.grey[600],
-              fontSize: 14,
-            ),
-          ),
-        ),
-        SizedBox(width: 12),
-        Expanded(
-          child: Text(
-            value,
-            style: TextStyle(
-              color: Color(0xFF2C3E50),
-              fontSize: 14,
-              fontWeight: FontWeight.w500,
-            ),
-          ),
-        ),
-      ],
+  // Helper to get static base URL (without /api)
+  String getStaticBaseUrl() {
+    String base = ApiConstants.baseUrl;
+    if (base.endsWith('/api')) {
+      return base.substring(0, base.length - 4);
+    }
+    if (base.endsWith('/api/')) {
+      return base.substring(0, base.length - 5);
+    }
+    return base;
+  }
+
+  Widget _buildImageFromPath(String imagePath) {
+    String url;
+    if (imagePath.startsWith('http')) {
+      url = imagePath;
+    } else {
+      // Use static base URL (without /api)
+      String baseUrl = getStaticBaseUrl();
+      if (baseUrl.endsWith('/')) {
+        baseUrl = baseUrl.substring(0, baseUrl.length - 1);
+      }
+      String cleanPath =
+          imagePath.startsWith('/') ? imagePath.substring(1) : imagePath;
+      url = '$baseUrl/$cleanPath';
+    }
+    print('DEBUG: Full image URL: $url'); // Remove after debugging
+    return Image.network(
+      url,
+      fit: BoxFit.contain,
+      loadingBuilder: (context, child, loadingProgress) {
+        if (loadingProgress == null) return child;
+        return Center(child: CircularProgressIndicator());
+      },
+      errorBuilder: (context, error, stackTrace) {
+        return Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.broken_image, size: 80, color: Colors.grey),
+            const SizedBox(height: 8),
+            Text('Failed to load image', style: TextStyle(color: Colors.grey)),
+            Text('Path: $imagePath',
+                style: TextStyle(fontSize: 10, color: Colors.grey)),
+          ],
+        );
+      },
     );
   }
 
-  Color _getStatusColor(String status) {
-    switch (status.toLowerCase()) {
+  Widget _footerBtn(
+      String label, IconData icon, Color color, VoidCallback onTap) {
+    return Padding(
+      padding: const EdgeInsets.only(right: 8),
+      child: OutlinedButton.icon(
+        onPressed: onTap,
+        icon: Icon(icon, size: 15, color: color),
+        label: Text(label, style: TextStyle(color: color, fontSize: 12)),
+        style: OutlinedButton.styleFrom(
+          side: BorderSide(color: color.withOpacity(0.4)),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+        ),
+      ),
+    );
+  }
+
+  Color _statusColor(String s) {
+    switch (s.toLowerCase()) {
       case 'stored':
-        return Color(0xFF27AE60);
+        return Colors.green;
       case 'retrieved':
-        return Color(0xFF3498DB);
+        return Colors.blue;
       case 'destroyed':
-        return Color(0xFFE74C3C);
+        return Colors.red;
       default:
         return Colors.grey;
     }
   }
 
-  IconData _getStatusIcon(String status) {
-    switch (status.toLowerCase()) {
+  IconData _statusIcon(String s) {
+    switch (s.toLowerCase()) {
       case 'stored':
-        return Icons.inventory_2;
+        return Icons.storage;
       case 'retrieved':
-        return Icons.assignment_return;
+        return Icons.move_to_inbox;
       case 'destroyed':
         return Icons.delete_forever;
       default:

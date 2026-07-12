@@ -181,4 +181,32 @@ class ApiConstants {
   static String deliveryByClient(String id) => '/deliveries/client/$id';
   static String deliverySignature(String id) => '/deliveries/$id/signature';
   static String deliveryPdf(String id) => '/deliveries/$id/pdf';
+
+  // Reports
+static const String reportBoxes                 = '/reports/boxes';
+static const String reportBoxesPendingDestruction = '/reports/boxes/pending-destruction';
+static const String reportCollections           = '/reports/collections';
+static const String reportRetrievals            = '/reports/retrievals';
+static const String reportDeliveries            = '/reports/deliveries';
+static const String reportRequests              = '/reports/requests';
+static const String reportStorageUtilisation    = '/reports/storage/utilisation';
+static String reportClientActivity(String id)   => '/reports/clients/$id/activity';
+
+// Dashboard
+static const String dashboardOverview           = '/dashboard/overview';
+static const String dashboardActivityFeed       = '/dashboard/activity-feed';
+static const String dashboardBoxesByStatus      = '/dashboard/boxes/by-status';
+static const String dashboardMonthlyTrend       = '/dashboard/trends/monthly';
+static const String dashboardDestructionCalendar = '/dashboard/destruction-calendar';
+static const String dashboardControls           = '/dashboard/controls';
+static const String dashboardDailyStats         = '/dashboard/daily-stats';
+
+// Audit
+static const String audit                       = '/audit';
+static const String auditSummary                = '/audit/summary';
+static const String auditExportCsv              = '/audit/export/csv';
+static const String auditExportJson             = '/audit/export/json';
+static String auditById(String id)              => '/audit/$id';
+static String auditEntityHistory(String type, String id) => '/audit/entity/$type/$id';
+static String auditUserActivity(String id)      => '/audit/users/$id/activity';
 }
