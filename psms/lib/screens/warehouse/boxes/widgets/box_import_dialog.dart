@@ -42,19 +42,21 @@ class _BoxImportDialogState extends State<BoxImportDialog> {
 
   // ─── Field mapping ────────────────────────────────────────────────────────
   static const Map<String, String> _fieldMapping = {
-    'clientid': 'clientId', 'client': 'clientId', 'customerid': 'clientId',
+    'clientcode': 'clientCode', 'client': 'clientCode', 'customercode': 'clientCode',
+    'clientid': 'clientCode', // legacy header still maps in, just treated as a code now
     'boxindex': 'boxIndex', 'boxno': 'boxIndex', 'boxnumber': 'boxIndex', 'index': 'boxIndex',
     'boxdescription': 'boxDescription', 'description': 'boxDescription', 'desc': 'boxDescription',
     'datereceived': 'dateReceived', 'receiveddate': 'dateReceived', 'received': 'dateReceived',
     'retentionyears': 'retentionYears', 'retention': 'retentionYears',
-    'rackinglabelid': 'rackingLabelId', 'labelid': 'rackingLabelId', 'rack': 'rackingLabelId',
+    'rackinglabelcode': 'rackingLabelCode', 'labelcode': 'rackingLabelCode', 'racklabel': 'rackingLabelCode',
+    'rackinglabelid': 'rackingLabelCode', 'labelid': 'rackingLabelCode', 'rack': 'rackingLabelCode', // legacy headers, treated as a code now
     'boxsize': 'boxSize', 'size': 'boxSize',
     'datayears': 'dataYears', 'daterange': 'dateRange',
     'boximage': 'boxImage', 'image': 'boxImage',
   };
 
   static const List<String> _requiredFields = [
-    'clientId', 'boxIndex', 'boxDescription', 'dateReceived',
+    'clientCode', 'boxIndex', 'boxDescription', 'dateReceived',
   ];
 
   static const List<String> _allowedBoxSizes = [
@@ -62,12 +64,12 @@ class _BoxImportDialogState extends State<BoxImportDialog> {
   ];
 
   static const List<_ColDef> _previewCols = [
-    _ColDef('Client ID',     'clientId',       72),
+    _ColDef('Client Code',   'clientCode',      90),
     _ColDef('Box Index',     'boxIndex',        110),
     _ColDef('Description',   'boxDescription',  200),
     _ColDef('Date Received', 'dateReceived',    120),
     _ColDef('Retention yrs', 'retentionYears',  90),
-    _ColDef('Rack Label ID', 'rackingLabelId',  100),
+    _ColDef('Rack Label',    'rackingLabelCode', 100),
     _ColDef('Box Size',      'boxSize',         72),
     _ColDef('Data Years',    'dataYears',       90),
     _ColDef('Date Range',    'dateRange',       120),
@@ -332,12 +334,12 @@ class _BoxImportDialogState extends State<BoxImportDialog> {
             spacing: 6,
             runSpacing: 6,
             children: [
-              _colChip('clientId',       required: true),
+              _colChip('clientCode',     required: true),
               _colChip('boxIndex',       required: true),
               _colChip('boxDescription', required: true),
               _colChip('dateReceived',   required: true),
               _colChip('retentionYears'),
-              _colChip('rackingLabelId'),
+              _colChip('rackingLabelCode'),
               _colChip('boxSize'),
               _colChip('dataYears'),
               _colChip('dateRange'),
@@ -641,7 +643,7 @@ class _BoxImportDialogState extends State<BoxImportDialog> {
               flex: 1,
               child: _ResultTable(
                 columns: const [
-                  'Client ID', 'Box Index', 'Error'
+                  'Client Code', 'Box Index', 'Error'
                 ],
                 rows: failedList
                     .map((f) => [
@@ -820,7 +822,7 @@ class _BoxImportDialogState extends State<BoxImportDialog> {
           final raw = _cellValue(row[ci]);
           if (raw == null) return;
           switch (field) {
-            case 'clientId': case 'rackingLabelId': case 'retentionYears':
+            case 'retentionYears':
               box[field] = _toInt(raw); break;
             case 'boxIndex':
               box[field] = _toBoxIndexString(raw); break;
@@ -836,8 +838,8 @@ class _BoxImportDialogState extends State<BoxImportDialog> {
         bool valid  = true;
         void fail(String msg) { errors.add('$label: $msg'); valid = false; }
 
-        if (_toInt(box['clientId'] ?? 0) <= 0)
-          fail('clientId missing or invalid');
+        if ((box['clientCode']?.toString().trim() ?? '').isEmpty)
+          fail('clientCode missing');
         if ((box['boxIndex']?.toString().trim() ?? '').isEmpty)
           fail('boxIndex missing');
         if ((box['boxDescription']?.toString().trim() ?? '').isEmpty)
@@ -883,14 +885,14 @@ class _BoxImportDialogState extends State<BoxImportDialog> {
     try {
       final boxes = _parsedBoxes.map((b) {
         final Map<String, dynamic> e = {
-          'clientId':       _toInt(b['clientId']),
+          'clientCode':     b['clientCode'].toString(),
           'boxIndex':       b['boxIndex'].toString(),
           'boxDescription': b['boxDescription'].toString(),
           'dateReceived':   b['dateReceived'].toString(),
           'retentionYears': _toInt(b['retentionYears'] ?? 7),
         };
-        final rackId = _toInt(b['rackingLabelId'] ?? 0);
-        if (rackId > 0) e['rackingLabelId'] = rackId;
+        final rackCode = b['rackingLabelCode']?.toString().trim();
+        if (rackCode != null && rackCode.isNotEmpty) e['rackingLabelCode'] = rackCode;
         for (final f in ['boxSize', 'dataYears', 'dateRange', 'boxImage']) {
           final v = b[f]?.toString().trim();
           if (v != null && v.isNotEmpty) e[f] = v;
@@ -898,8 +900,7 @@ class _BoxImportDialogState extends State<BoxImportDialog> {
         return e;
       }).toList();
 
-      final result = await _ctrl.bulkCreateBoxes(
-          BulkCreateBoxRequest.fromMap({'boxes': boxes}));
+      final result = await _ctrl.bulkCreateBoxes(boxes);
 
       if (result['success'] == true) {
         final data = (result['data'] as Map<String, dynamic>?) ?? {};
@@ -924,7 +925,7 @@ class _BoxImportDialogState extends State<BoxImportDialog> {
   // ─── Helpers ──────────────────────────────────────────────────────────────
 
   static String _normaliseHeader(String raw) =>
-      raw.toLowerCase().replaceAll(RegExp(r'[\s_\-]'), '');
+      raw.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]'), '');
 
   static dynamic _cellValue(excel.Data? cell) {
     if (cell == null) return null;

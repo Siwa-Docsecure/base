@@ -14,6 +14,7 @@ import 'package:psms/controllers/audit_controller.dart';
 import 'package:psms/controllers/auth_controller.dart';
 import 'package:psms/models/audit_models.dart';
 import 'package:share_plus/share_plus.dart';
+import 'package:fl_chart/fl_chart.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // CONSTANTS
@@ -92,7 +93,7 @@ class _AuditScreenState extends State<AuditScreen>
     final isWide = MediaQuery.of(context).size.width > 900;
 
     return Scaffold(
-      backgroundColor: Colors.grey[100],
+      backgroundColor: Colors.transparent,
       appBar: _buildAppBar(),
       body: Column(
         children: [
@@ -1047,39 +1048,89 @@ class _AuditScreenState extends State<AuditScreen>
   }
 
   Widget _buildDailyVolumeChart(List<AuditDailyVolume> volume) {
-    final max = volume.map((v) => v.eventCount).reduce((a, b) => a > b ? a : b);
+    final maxCount = volume.map((v) => v.eventCount).reduce((a, b) => a > b ? a : b);
+    final todayStr = DateFormat('yyyy-MM-dd').format(DateTime.now());
+
     return SizedBox(
-      height: 120,
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.end,
-        children: volume.map((v) {
-          final height = max == 0 ? 0.0 : (v.eventCount / max) * 100.0;
-          final isToday = v.day == DateFormat('yyyy-MM-dd').format(DateTime.now());
-          return Expanded(
-            child: Tooltip(
-              message: '${v.day}: ${v.eventCount} events',
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.end,
-                children: [
-                  AnimatedContainer(
-                    duration: const Duration(milliseconds: 400),
-                    height: height,
-                    margin: const EdgeInsets.symmetric(horizontal: 2),
-                    decoration: BoxDecoration(
-                      color: isToday ? Colors.orange : _blueColor.withOpacity(0.65),
-                      borderRadius: const BorderRadius.vertical(top: Radius.circular(3)),
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    v.day.substring(8), // day-of-month
-                    style: TextStyle(fontSize: 9, color: Colors.grey[500]),
-                  ),
-                ],
+      height: 220,
+      child: LineChart(
+        LineChartData(
+          minY: 0,
+          maxY: maxCount + 1,
+          gridData: FlGridData(
+            show: true,
+            drawVerticalLine: false,
+            getDrawingHorizontalLine: (v) => FlLine(color: Colors.grey.shade200, strokeWidth: 1),
+          ),
+          borderData: FlBorderData(show: false),
+          titlesData: FlTitlesData(
+            topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+            rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+            leftTitles: const AxisTitles(
+                sideTitles: SideTitles(showTitles: true, reservedSize: 28, interval: 1)),
+            bottomTitles: AxisTitles(
+              sideTitles: SideTitles(
+                showTitles: true,
+                reservedSize: 26,
+                getTitlesWidget: (value, meta) {
+                  final i = value.toInt();
+                  if (i < 0 || i >= volume.length) return const Text('');
+                  return Padding(
+                    padding: const EdgeInsets.only(top: 6),
+                    child: Text(volume[i].day.substring(8),
+                        style: const TextStyle(fontSize: 10)),
+                  );
+                },
               ),
             ),
-          );
-        }).toList(),
+          ),
+          lineTouchData: LineTouchData(
+            touchTooltipData: LineTouchTooltipData(
+              getTooltipItems: (spots) => spots.map((s) {
+                final v = volume[s.x.toInt()];
+                return LineTooltipItem(
+                  '${v.day}\n${v.eventCount} event(s)',
+                  const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w600),
+                );
+              }).toList(),
+            ),
+          ),
+          lineBarsData: [
+            LineChartBarData(
+              spots: [
+                for (int i = 0; i < volume.length; i++)
+                  FlSpot(i.toDouble(), volume[i].eventCount.toDouble()),
+              ],
+              isCurved: true,
+              curveSmoothness: 0.3,
+              color: _blueColor,
+              barWidth: 3,
+              dotData: FlDotData(
+                show: true,
+                getDotPainter: (spot, percent, bar, index) {
+                  final isToday = volume[index].day == todayStr;
+                  return FlDotCirclePainter(
+                    radius: isToday ? 5 : 3.5,
+                    color: isToday ? Colors.orange : _blueColor,
+                    strokeWidth: 2,
+                    strokeColor: Colors.white,
+                  );
+                },
+              ),
+              belowBarData: BarAreaData(
+                show: true,
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [
+                    _blueColor.withOpacity(0.22),
+                    _blueColor.withOpacity(0.0),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

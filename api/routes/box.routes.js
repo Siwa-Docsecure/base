@@ -893,7 +893,12 @@ router.delete('/:boxId',
 
 /**
  * @route   POST /api/boxes/bulk/create
- * @desc    Bulk create boxes with client-coded box numbers and optional new fields
+ * @desc    Bulk create boxes with client-coded box numbers and optional new fields.
+ *          Client is supplied as `clientCode` (e.g. "FIN") and racking
+ *          location as `rackingLabelCode` (e.g. "A-12") — not the internal
+ *          numeric `clientId` / `rackingLabelId` — both are resolved
+ *          server-side. The boxes table itself is unchanged; it still
+ *          stores client_id / racking_label_id exactly as before.
  * @access  Admin, Staff (with permission)
  */
 router.post('/bulk/create',
@@ -912,43 +917,131 @@ router.post('/bulk/create',
         failed: []
       };
 
-      // ===== 1. Get client codes for all involved clients =====
-      const clientIds = [...new Set(boxes.map(b => b.clientId))];
+      // ===== 1. Resolve clients: accept clientCode (preferred) or clientId =====
+      // clientByCode: UPPER(client_code) -> { clientId, clientCode }
+      // clientCodeById: client_id -> client_code (used for grouping/duplicate messages)
+      const clientByCode = new Map();
+      const clientCodeById = new Map();
 
-      // Build dynamic placeholders for IN clause
-      const clientPlaceholders = clientIds.map(() => '?').join(',');
-      const [clientRecords] = await db.query(
-        `SELECT client_id, client_code FROM clients WHERE client_id IN (${clientPlaceholders})`,
-        clientIds
-      );
+      const requestedClientCodes = [
+        ...new Set(
+          boxes
+            .map(b => (b.clientCode || '').toString().trim())
+            .filter(code => code.length > 0)
+        )
+      ];
+      const requestedClientIds = [
+        ...new Set(
+          boxes
+            .filter(b => !(b.clientCode || '').toString().trim())
+            .map(b => b.clientId)
+            .filter(id => id !== undefined && id !== null)
+        )
+      ];
 
-      const clientMap = new Map();
-      clientRecords.forEach(client => {
-        clientMap.set(client.client_id, client.client_code);
+      if (requestedClientCodes.length > 0) {
+        const codePlaceholders = requestedClientCodes.map(() => '?').join(',');
+        const [byCode] = await db.query(
+          `SELECT client_id, client_code FROM clients WHERE UPPER(client_code) IN (${codePlaceholders})`,
+          requestedClientCodes.map(code => code.toUpperCase())
+        );
+        byCode.forEach(client => {
+          clientByCode.set(client.client_code.toUpperCase(), {
+            clientId: client.client_id,
+            clientCode: client.client_code
+          });
+          clientCodeById.set(client.client_id, client.client_code);
+        });
+      }
+
+      if (requestedClientIds.length > 0) {
+        const idPlaceholders = requestedClientIds.map(() => '?').join(',');
+        const [byId] = await db.query(
+          `SELECT client_id, client_code FROM clients WHERE client_id IN (${idPlaceholders})`,
+          requestedClientIds
+        );
+        byId.forEach(client => {
+          clientCodeById.set(client.client_id, client.client_code);
+        });
+      }
+
+      // Resolve each box's client up front (clientCode wins if present) so
+      // every later step uses one consistent identifier regardless of
+      // which input field was actually supplied.
+      const resolvedBoxes = boxes.map(boxData => {
+        const rawClientCode = (boxData.clientCode || '').toString().trim();
+        let resolvedClientId = null;
+        let resolvedClientCode = null;
+
+        if (rawClientCode) {
+          const match = clientByCode.get(rawClientCode.toUpperCase());
+          if (match) {
+            resolvedClientId = match.clientId;
+            resolvedClientCode = match.clientCode;
+          }
+        } else if (boxData.clientId !== undefined && boxData.clientId !== null) {
+          if (clientCodeById.has(boxData.clientId)) {
+            resolvedClientId = boxData.clientId;
+            resolvedClientCode = clientCodeById.get(boxData.clientId);
+          }
+        }
+
+        return {
+          ...boxData,
+          _clientInput: rawClientCode || boxData.clientId, // for error messages
+          resolvedClientId,
+          resolvedClientCode
+        };
       });
+
+      // ===== 1b. Resolve racking label codes -> label_id (batch lookup) =====
+      // Accepts `rackingLabelCode` (e.g. "A-12") since it's what's actually
+      // on hand at import time. `rackingLabelId` is still honoured directly
+      // if a caller passes it instead, for backward compatibility.
+      const rackingLabelCodes = [
+        ...new Set(
+          boxes
+            .map(b => (b.rackingLabelCode || '').toString().trim())
+            .filter(code => code.length > 0)
+        )
+      ];
+
+      const rackingLabelMap = new Map(); // label_code -> { labelId, isAvailable }
+      if (rackingLabelCodes.length > 0) {
+        const labelPlaceholders = rackingLabelCodes.map(() => '?').join(',');
+        const [labelRecords] = await db.query(
+          `SELECT label_id, label_code, is_available FROM racking_labels WHERE label_code IN (${labelPlaceholders})`,
+          rackingLabelCodes
+        );
+        labelRecords.forEach(label => {
+          rackingLabelMap.set(label.label_code, {
+            labelId: label.label_id,
+            isAvailable: !!label.is_available
+          });
+        });
+      }
 
       // ===== 2. Validate request‑local duplicates and collect proposed box numbers =====
       const proposedBoxNumbers = [];
       const clientBoxMap = new Map(); // clientCode -> Set of boxIndices
 
-      for (const boxData of boxes) {
-        const { clientId, boxIndex } = boxData;
+      for (const boxData of resolvedBoxes) {
+        const { resolvedClientId, resolvedClientCode, boxIndex, _clientInput } = boxData;
 
-        if (!clientMap.has(clientId)) {
+        if (!resolvedClientId) {
           results.failed.push({
-            clientId,
+            clientId: _clientInput,
             boxIndex,
             error: 'Client not found'
           });
           continue;
         }
 
-        const clientCode = clientMap.get(clientId);
         const formattedBoxIndex = boxIndex ? boxIndex.trim().toUpperCase() : null;
 
         if (!formattedBoxIndex) {
           results.failed.push({
-            clientId,
+            clientId: resolvedClientCode,
             boxIndex,
             error: 'Box index is required'
           });
@@ -958,16 +1051,16 @@ router.post('/bulk/create',
         const boxNumber = formattedBoxIndex;
         proposedBoxNumbers.push(boxNumber);
 
-        if (!clientBoxMap.has(clientCode)) {
-          clientBoxMap.set(clientCode, new Set());
+        if (!clientBoxMap.has(resolvedClientCode)) {
+          clientBoxMap.set(resolvedClientCode, new Set());
         }
 
-        const clientBoxIndices = clientBoxMap.get(clientCode);
+        const clientBoxIndices = clientBoxMap.get(resolvedClientCode);
         if (clientBoxIndices.has(formattedBoxIndex)) {
           results.failed.push({
-            clientId,
+            clientId: resolvedClientCode,
             boxIndex: formattedBoxIndex,
-            error: `Duplicate box index '${formattedBoxIndex}' for client ${clientCode} in request`
+            error: `Duplicate box index '${formattedBoxIndex}' for client ${resolvedClientCode} in request`
           });
         } else {
           clientBoxIndices.add(formattedBoxIndex);
@@ -986,11 +1079,14 @@ router.post('/bulk/create',
         const existingSet = new Set(existingBoxes.map(b => b.box_number));
 
         // ===== 4. Process each box, inserting only valid ones =====
-        for (const boxData of boxes) {
+        for (const boxData of resolvedBoxes) {
           try {
             const {
-              clientId,
+              resolvedClientId,
+              resolvedClientCode,
+              _clientInput,
               rackingLabelId,
+              rackingLabelCode,
               boxIndex,
               boxDescription,
               dateReceived,
@@ -1002,7 +1098,7 @@ router.post('/bulk/create',
             } = boxData;
 
             // Skip if already marked as failed in earlier steps
-            if (results.failed.some(f => f.clientId === clientId && f.boxIndex === boxIndex)) {
+            if (results.failed.some(f => f.clientId === (resolvedClientCode || _clientInput) && f.boxIndex === boxIndex)) {
               continue;
             }
 
@@ -1014,8 +1110,23 @@ router.post('/bulk/create',
               throw new Error(`Box number '${boxNumber}' already exists`);
             }
 
-            // Check racking label if provided
-            if (rackingLabelId) {
+            // Resolve racking label: prefer rackingLabelCode (batch-resolved
+            // above), fall back to a raw rackingLabelId if that's what was
+            // sent instead. boxes.racking_label_id is populated identically
+            // either way — only the input field changed.
+            let resolvedRackingLabelId = null;
+            const trimmedCode = (rackingLabelCode || '').toString().trim();
+
+            if (trimmedCode) {
+              const label = rackingLabelMap.get(trimmedCode);
+              if (!label) {
+                throw new Error(`Racking label '${trimmedCode}' not found`);
+              }
+              if (!label.isAvailable) {
+                throw new Error(`Racking label '${trimmedCode}' is not available`);
+              }
+              resolvedRackingLabelId = label.labelId;
+            } else if (rackingLabelId) {
               const [labels] = await db.query(
                 'SELECT label_id, is_available FROM racking_labels WHERE label_id = ?',
                 [rackingLabelId]
@@ -1026,6 +1137,7 @@ router.post('/bulk/create',
               if (!labels[0].is_available) {
                 throw new Error('Racking label is not available');
               }
+              resolvedRackingLabelId = rackingLabelId;
             }
 
             // Validate boxSize against allowed ENUM
@@ -1037,7 +1149,8 @@ router.post('/bulk/create',
             const receivedDate = new Date(dateReceived);
             const yearReceived = receivedDate.getFullYear();
 
-            // Insert box
+            // Insert box — client_id / racking_label_id columns/behaviour
+            // are unchanged
             const [result] = await db.query(`
               INSERT INTO boxes (
                 box_number, client_id, racking_label_id, box_description,
@@ -1045,7 +1158,7 @@ router.post('/bulk/create',
                 box_size, data_years, date_range, box_image
               ) VALUES (?, ?, ?, ?, ?, ?, ?, 'stored', ?, ?, ?, ?)
             `, [
-              boxNumber, clientId, rackingLabelId || null, boxDescription,
+              boxNumber, resolvedClientId, resolvedRackingLabelId, boxDescription,
               dateReceived, yearReceived, retentionYears,
               boxSize || null, dataYears || null, dateRange || null, boxImage || null
             ]);
@@ -1058,7 +1171,7 @@ router.post('/bulk/create',
 
           } catch (error) {
             results.failed.push({
-              clientId: boxData.clientId,
+              clientId: boxData.resolvedClientCode || boxData._clientInput,
               boxIndex: boxData.boxIndex,
               error: error.message
             });

@@ -956,8 +956,15 @@ class BoxController extends GetxController {
   // BULK OPERATIONS
   // ============================================
 
+  /// Bulk-creates boxes from a list of raw box maps (as produced by
+  /// BoxImportDialog's Excel parser). Deliberately NOT typed as
+  /// BulkCreateBoxRequest — that model's fromMap/toJson still assumes a
+  /// numeric `clientId` and crashes with a null-int cast now that the
+  /// import flow sends `clientCode`/`rackingLabelCode` strings instead.
+  /// Sending the maps straight through sidesteps that entirely; the
+  /// server-side bulk/create endpoint already accepts this exact shape.
   Future<Map<String, dynamic>> bulkCreateBoxes(
-      BulkCreateBoxRequest request) async {
+      List<Map<String, dynamic>> boxes) async {
     try {
       if (!canCreateBoxes) {
         return {
@@ -966,8 +973,9 @@ class BoxController extends GetxController {
         };
       }
 
-      for (var box in request.boxes) {
-        if (box.boxIndex.trim().isEmpty) {
+      for (var box in boxes) {
+        final boxIndex = (box['boxIndex'] ?? '').toString().trim();
+        if (boxIndex.isEmpty) {
           return {
             'success': false,
             'message': 'Box index cannot be empty for all boxes',
@@ -981,7 +989,7 @@ class BoxController extends GetxController {
       final response = await http.post(
         Uri.parse('${ApiConstants.baseUrl}${ApiConstants.bulkCreateBoxes}'),
         headers: getAuthHeaders(),
-        body: json.encode(request.toJson()),
+        body: json.encode({'boxes': boxes}),
       );
 
       if (response.statusCode == 201) {
